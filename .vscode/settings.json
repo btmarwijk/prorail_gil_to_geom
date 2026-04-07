@@ -1,0 +1,19 @@
+{
+  "[python]": {
+    "editor.formatOnSave": true,
+    "editor.defaultFormatter": "charliermarsh.ruff",
+    "editor.codeActionsOnSave": {
+      "source.fixAll.ruff": "explicit",
+      "source.organizeImports.ruff": "explicit"
+    }
+  },
+  "ruff.nativeServer": true,
+  "terminal.integrated.profiles.linux": {
+  "bash": {
+    "path": "/bin/bash",
+    "args": ["-l"]
+  }
+},
+"terminal.integrated.defaultProfile.linux": "bash",
+"python.analysis.extraPaths": ["./app/src"]
+}

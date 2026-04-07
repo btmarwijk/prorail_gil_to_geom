@@ -1,0 +1,101 @@
+services:
+  db:
+    image: docker.io/postgis/postgis:15-3.3
+    container_name: fastapi_gis_db
+    restart: always
+    environment:
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: ${DB_NAME}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  redis:
+    image: redis:7-alpine
+    container_name: fastapi_redis
+    restart: always
+    ports:
+      - "6379:6379"
+    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD:-redis}
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  app:
+    build: 
+      context: ./app
+      dockerfile: Dockerfile
+    container_name: fastapi_app
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./app:/app:Z
+    workdir: /app
+    environment:
+      - DATABASE_URL=postgresql://${DB_USER}:${DB_PASSWORD}@db:5432/${DB_NAME}
+      - PYTHONPATH=/app/src:/app
+    depends_on:
+      - db
+    command: uvicorn src.main:app --host 0.0.0.0 --port 8000 --reload
+
+  web:
+    build:
+      context: ./web
+      dockerfile: Dockerfile
+    container_name: react_web
+    ports:
+      - "5173:5173"
+    volumes:
+      - ./web:/app:Z
+      - /app/node_modules
+      - /app/node_modules/.vite
+    environment:
+      - VITE_API_URL=http://localhost:8000
+    depends_on:
+      - app
+    stdin_open: true
+    tty: true
+
+  geoserver:
+      image: kartoza/geoserver:latest
+      container_name: fastapi_geoserver
+      restart: always
+      environment:
+        GEOSERVER_ADMIN_USER: admin
+        GEOSERVER_ADMIN_PASSWORD: ${GEOSERVER_PASSWORD:-geoserver}
+        INITIAL_MEMORY: "2G"
+        MAXIMUM_MEMORY: "4G"
+      ports:
+        - "8080:8080"
+      volumes:
+        - geoserver_data:/opt/geoserver/data_dir
+      depends_on:
+        - db
+
+  nginx:
+    image: nginx:alpine
+    container_name: nginx_reverse_proxy
+    restart: always
+    ports:
+      - "8888:80"
+      - "8443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/conf.d:/etc/nginx/conf.d:ro
+    depends_on:
+      - app
+      - web
+      - geoserver
+    stdin_open: true
+    tty: true
+
+volumes:
+  postgres_data:
+  redis_data:
+  geoserver_data:
