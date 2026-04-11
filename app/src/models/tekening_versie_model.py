@@ -1,2 +1,0 @@
-class TekeningVersie:
-    pass

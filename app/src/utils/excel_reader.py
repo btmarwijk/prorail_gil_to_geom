@@ -3,9 +3,8 @@ import warnings
 import numpy as np
 import openpyxl
 import pandas as pd
-
-from core import logger, settings, test_files
-from schemas.meta_spoorkabel_schema import MetaSpoorkabelCreate, MetaSpoorkabelRead
+from core import logger
+from schemas.meta_spoorkabel_schema import MetaSpoorkabelCreate
 
 warnings.filterwarnings("ignore", category=UserWarning, module="openpyxl")
 # --- All Column names ---
@@ -26,11 +25,11 @@ class ExcelReader:
 
     def __init__(
         self,
-        file_path: str,
+        file_source: str,
         remove_empty_geulen: bool = True,
         remove_duplicate_geulen: bool = False,
     ) -> None:
-        self.file_path = file_path
+        self.file_source = file_source
         self.remove_empty_geulen = remove_empty_geulen
         self.remove_duplicate_geulen = remove_duplicate_geulen
         self.tekeningnamen = []
@@ -55,7 +54,7 @@ class ExcelReader:
 
     @property
     def excel_file(self) -> openpyxl.Workbook:
-        return openpyxl.load_workbook(self.file_path, data_only=True)
+        return openpyxl.load_workbook(self.file_source, data_only=True)
 
     @property
     def _sheet_names(self) -> list[str]:
@@ -68,7 +67,9 @@ class ExcelReader:
         if len(self._sheet_names) > 1:
             return True
 
-    def _get_cell_value_by_label(self, sheet_name: str, label_cell: str, value_cell: str, expected_label: str) -> str:
+    def _get_cell_value_by_label(
+        self, sheet_name: str, label_cell: str, value_cell: str, expected_label: str
+    ) -> str:
         """
         Generic helper to validate a label and return the corresponding value from an Excel sheet.
         """
@@ -80,7 +81,9 @@ class ExcelReader:
             raise ValueError(f"Expected '{expected_label}' in cell {label_cell}")
 
         if value_val is None:
-            raise ValueError(f"Cell {value_cell} is empty. {expected_label} is required.")
+            raise ValueError(
+                f"Cell {value_cell} is empty. {expected_label} is required."
+            )
 
         return value_val
 
@@ -116,23 +119,35 @@ class ExcelReader:
     def _read_single_sheet(self, sheet_name: str | None = None) -> pd.DataFrame:
         # Metadata on the input table added as column
         tekeningnaam = self._get_cell_value_by_label(
-            sheet_name=sheet_name, label_cell="A1", value_cell="B1", expected_label="GIL:"
+            sheet_name=sheet_name,
+            label_cell="A1",
+            value_cell="B1",
+            expected_label="GIL:",
         )
         self.versie = self._get_cell_value_by_label(
-            sheet_name=sheet_name, label_cell="C1", value_cell="D1", expected_label="VERSIE:"
+            sheet_name=sheet_name,
+            label_cell="C1",
+            value_cell="D1",
+            expected_label="VERSIE:",
         )
         self.geocodenaam = self._get_cell_value_by_label(
-            sheet_name=sheet_name, label_cell="G1", value_cell="H1", expected_label="GEOCODENAAM:"
+            sheet_name=sheet_name,
+            label_cell="G1",
+            value_cell="H1",
+            expected_label="GEOCODENAAM:",
         )
         self.gedownload = self._get_cell_value_by_label(
-            sheet_name=sheet_name, label_cell="I1", value_cell="J1", expected_label="GEDOWNLOAD:"
+            sheet_name=sheet_name,
+            label_cell="I1",
+            value_cell="J1",
+            expected_label="GEDOWNLOAD:",
         )
 
         # header_row is the index of the row containing the column names
         self._header_row = self._find_header_row(sheet_name=sheet_name)
 
         df: pd.DataFrame = pd.read_excel(
-            self.file_path,
+            self.file_source,
             sheet_name=sheet_name,
             skiprows=self._header_row - 1,
         )
@@ -162,7 +177,12 @@ class ExcelReader:
             else self._read_single_sheet(sheet_name=self._sheet_names[0])
         )
         self._raw_shape = df.shape
-        self.table: pd.DataFrame = self._filter_rows(df=df).reset_index(drop=True).replace({np.nan: None})
+        self.table: pd.DataFrame = (
+            self._filter_rows(df=df).reset_index(drop=True).replace({np.nan: None})
+        )
+
+    def to_dataframe(self) -> pd.DataFrame:
+        return self.table
 
     def to_dict(self) -> list[dict]:
         return self.table.to_dict(orient="records")
@@ -172,10 +192,12 @@ class ExcelReader:
         return [MetaSpoorkabelCreate(upload_guid=None, **record) for record in records]
 
 
-
 if __name__ == "__main__":
-    reader = ExcelReader(
-        file_path=test_files.SINGLE_KABEL_FILE, remove_empty_geulen=True, remove_duplicate_geulen=False
-    )
-    results: list[MetaSpoorkabelCreate] = reader.to_pydantic_create()
-    print(results[10].model_dump(by_alias=True))
+    pass
+    # reader = ExcelReader(
+    #     file_path=test_files.SINGLE_KABEL_FILE,
+    #     remove_empty_geulen=True,
+    #     remove_duplicate_geulen=False,
+    # )
+    # results: list[MetaSpoorkabelCreate] = reader.to_pydantic_create()
+    # print(results[10].model_dump(by_alias=True))

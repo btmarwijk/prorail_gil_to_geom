@@ -1,2 +1,0 @@
-class Tekeningnaam:
-    pass

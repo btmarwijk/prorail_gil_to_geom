@@ -4,26 +4,32 @@ Run this once to create all tables and confirm they landed correctly.
     python test_models.py
 """
 
-from sqlalchemy import inspect, text
 from core.database import engine, init_db
 from models import (
-    MetaSpoorkabel,
     FullSpoorkabel,
     ProrailGil,
     Spoorkabel,
+    SpoorkabelGeometrie,
     SpoorkabelProrailRelation,
+    SpoorkabelVersieDetail,
+    Tekening,
     Upload,
     User,
+    Versie,
 )
+from sqlalchemy import inspect, text
 
 EXPECTED_TABLES = {
     "user": User,
     "upload": Upload,
-    "meta_spoorkabel": MetaSpoorkabel,
+    "tekeningen": Tekening,
     "full_spoorkabel": FullSpoorkabel,
     "spoorkabel": Spoorkabel,
     "prorail_gil": ProrailGil,
     "spoorkabel_prorail_feature_relation": SpoorkabelProrailRelation,
+    "versies": Versie,
+    "spoorkabel_geometrieen": SpoorkabelGeometrie,
+    "kabel_versie_details": SpoorkabelVersieDetail,
 }
 
 

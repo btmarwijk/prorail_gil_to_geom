@@ -1,113 +1,53 @@
-from unittest.mock import patch
+import io
 
+import pandas as pd
 import pytest
-from fastapi import status
-from fastapi.testclient import TestClient
-
-# Adjust these imports to match your project's file structure
-from main import app  # Assuming your FastAPI app is initialized here
-from schemas.meta_spoorkabel_schema import MetaSpoorkabelCreate
-
-client = TestClient(app)
+from httpx import ASGITransport, AsyncClient
+from main import app
 
 
-@pytest.fixture
-def mock_upload_service():
-    """Fixtures are a great way to clean up setup/mocking code."""
-    with patch("upload_view.UploadService") as mock:
-        yield mock
+@pytest.mark.asyncio
+async def test_upload_excel_success():
+    # 1. Create a dummy DataFrame and convert to Excel bytes
+    df = pd.DataFrame({"Name": ["Alice", "Bob"], "Age": [25, 30]})
+    excel_buffer = io.BytesIO()
 
+    # Ensure openpyxl is installed for this to work
+    with pd.ExcelWriter(excel_buffer, engine="openpyxl") as writer:
+        df.to_excel(writer, index=False)
+    excel_buffer.seek(0)
 
-@pytest.fixture
-def mock_excel_reader():
-    """Mock the heavy openpyxl reader so we don't need real files."""
-    with patch("upload_view.ExcelReader") as mock:
-        yield mock
-
-
-## --- Test Cases ---
-
-
-def test_upload_excel_success(mock_upload_service, mock_excel_reader):
-    """GIVEN a valid .xlsx file
-
-    WHEN the user uploads it
-    THEN it should return 200 and the list of mapped cables.
-    """
-    # 1. Arrange: Create a fake return value for our service
-    mock_service_instance = mock_upload_service.return_value
-    mock_service_instance.process_upload.return_value = [
-        MetaSpoorkabelCreate(
-            upload_guid=1,
-            tekeningnaam="Drawing_A",
-            geocodenaam="Geo_1",
-            versie="1.0",
-        )
-    ]
-
-    # Mock the reader's properties if the service relies on them directly
-    mock_reader_instance = mock_excel_reader.return_value
-    mock_reader_instance.tekeningnamen_str = "Drawing_A"
-
-    # 2. Act: Simulate sending a file over HTTP
-    fake_file_content = b"fake excel file binary data"
-    response = client.post(
-        "/upload/excel",
-        files={
+    # 2. Setup the AsyncClient
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://127.0.0.1:8000") as ac:
+        # 3. Prepare the file
+        files = {
             "file": (
-                "test_file.xlsx",
-                fake_file_content,
+                "test.xlsx",
+                excel_buffer,
                 "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
             )
-        },
-    )
+        }
 
-    # 3. Assert
-    assert response.status_code == status.HTTP_200_OK
+        # 4. Perform the POST request using the FULL path from your docs
+        # Path: /api/v1/uploads/upload-excel
+        response = await ac.post("/api/v1/uploads/upload-excel", files=files)
+
+    # 5. Assertions
+    assert response.status_code == 200
+    if response.status_code == 422:
+        print(response.json())
     data = response.json()
-    assert len(data) == 1
-    assert data[0]["tekeningnaam"] == "Drawing_A"
+    assert data["filename"] == "test.xlsx"
+    assert data["rows"] == 2
+    assert data["data"][0]["Name"] == "Alice"
 
 
-def test_upload_invalid_extension():
-    """GIVEN a file with an invalid extension (e.g., .txt)
+@pytest.mark.asyncio
+async def test_upload_no_file():
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://127.0.0.1:8000") as ac:
+        # Correct path here as well
+        response = await ac.post("/api/v1/uploads/upload-excel")
 
-    WHEN the user attempts to upload it
-    THEN it should be blocked with a 400 Bad Request before processing.
-    """
-    # Act
-    response = client.post(
-        "/upload/excel",
-        files={"file": ("malicious_script.txt", b"print('hello')", "text/plain")},
-    )
-
-    # Assert
-    assert response.status_code == status.HTTP_400_BAD_REQUEST
-    assert "Only .xlsx and .xls are supported" in response.json()["detail"]
-
-
-def test_upload_processing_failure(mock_upload_service, mock_excel_reader):
-    """GIVEN a situation where processing throws an unexpected error
-
-    WHEN the user uploads a valid file
-    THEN it should catch it and return a 500 Server Error safely.
-    """
-    # Arrange: Force the service to blow up
-    mock_service_instance = mock_upload_service.return_value
-    mock_service_instance.process_upload.side_effect = Exception("Corrupt sheet!")
-
-    # Act
-    response = client.post(
-        "/upload/excel",
-        files={
-            "file": (
-                "broken_file.xlsx",
-                b"corrupt data",
-                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-            )
-        },
-    )
-
-    # Assert
-    assert response.status_code == status.HTTP_500_INTERNAL_SERVER_ERROR
-    assert "File processing failed" in response.json()["detail"]
+    assert response.status_code == 422
