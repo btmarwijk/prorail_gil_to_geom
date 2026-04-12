@@ -32,8 +32,10 @@ class SpoorkabelVersieDetail(Base):
     lengte: Mapped[Optional[float]] = mapped_column()
 
     # Relaties
-    spoorkabel: Mapped["Spoorkabel"] = relationship(back_populates="versie_details")
-    versie: Mapped["Versie"] = relationship(back_populates="kabel_details")
+    spoorkabel: Mapped["Spoorkabel"] = relationship(
+        "Spoorkabel", back_populates="versie_details"
+    )
+    versie: Mapped["Versie"] = relationship("Versie", back_populates="kabel_details")
     geometrie: Mapped["SpoorkabelGeometrie"] = relationship(
-        back_populates="versie_details"
+        "SpoorkabelGeometrie", back_populates="versie_details"
     )

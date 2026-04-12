@@ -123,3 +123,26 @@ class GILDiscipline(Enum):
     RIOOLDRAINAGE = "RD"
     WISSELVERWARMING = "WV"
     WATERBRANDLEIDING = "WB"
+
+
+class UserRole(str, Enum):
+    # Ultimate access; can manage system settings and other administrators.
+    SUPER_ADMIN = "super_admin"
+
+    # High-level access; typically manages standard users, billing, and global content.
+    ADMIN = "admin"
+
+    # Elevated access; typically manages user-generated content, comments, and disputes.
+    MODERATOR = "moderator"
+
+    # Standard authenticated user with access to baseline features and their own data.
+    USER = "user"
+
+    # Unauthenticated or temporary user with highly restricted read-only access.
+    GUEST = "guest"
+
+    # Special role for internal automated processes, cron jobs, or API integrations.
+    SYSTEM = "system"
+
+    # Specific role for compliance, auditing, or support staff who need to see data but cannot modify it.
+    READ_ONLY = "read_only"

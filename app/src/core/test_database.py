@@ -7,6 +7,11 @@ Run this once to create all tables and confirm they landed correctly.
 from core.database import engine, init_db
 from models import (
     FullSpoorkabel,
+    Group,
+    GroupMembershipRelation,
+    GroupProjectRelation,
+    Location,
+    Project,
     ProrailGil,
     Spoorkabel,
     SpoorkabelGeometrie,
@@ -15,21 +20,30 @@ from models import (
     Tekening,
     Upload,
     User,
+    UserLogin,
+    UserSettings,
     Versie,
 )
 from sqlalchemy import inspect, text
 
 EXPECTED_TABLES = {
-    "user": User,
-    "upload": Upload,
-    "tekeningen": Tekening,
     "full_spoorkabel": FullSpoorkabel,
-    "spoorkabel": Spoorkabel,
+    "groups": Group,
+    "group_members": GroupMembershipRelation,
+    "group_project_relations": GroupProjectRelation,
+    "locations": Location,
+    "projecten": Project,
     "prorail_gil": ProrailGil,
-    "spoorkabel_prorail_feature_relation": SpoorkabelProrailRelation,
-    "versies": Versie,
+    "spoorkabel": Spoorkabel,
     "spoorkabel_geometrieen": SpoorkabelGeometrie,
+    "spoorkabel_prorail_feature_relation": SpoorkabelProrailRelation,
     "kabel_versie_details": SpoorkabelVersieDetail,
+    "tekeningen": Tekening,
+    "upload": Upload,
+    "user": User,
+    "user_logins": UserLogin,
+    "user_settings": UserSettings,
+    "versies": Versie,
 }
 
 
@@ -78,7 +92,14 @@ def check_geometry_columns(conn):
             WHERE f_table_name = ANY(:tables)
             ORDER BY f_table_name
         """),
-        {"tables": ["spoorkabel", "prorail_features", "multi_tekeningen_kabels"]},
+        {
+            "tables": [
+                "spoorkabel",
+                "spoorkabel_geometrieen",
+                "full_spoorkabel",
+                "prorail_gil",
+            ]
+        },
     ).fetchall()
     print(f"\n{'Table':<45} {'Column':<20} {'SRID':<8} Type")
     print("-" * 100)

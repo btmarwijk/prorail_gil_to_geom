@@ -27,7 +27,7 @@ class Spoorkabel(Base):
     )
 
     geom: Mapped[object] = mapped_column(
-        Geometry("LINESTRING", srid=28992), nullable=True
+        Geometry("MULTILINESTRING", srid=28992), nullable=True
     )
 
     kabelnaam: Mapped[str | None] = mapped_column(String)

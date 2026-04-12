@@ -24,5 +24,5 @@ class SpoorkabelGeometrie(Base):
     geometry_hash: Mapped[int] = mapped_column(String(64), unique=True, index=True)
 
     versie_details: Mapped[list["SpoorkabelVersieDetail"]] = relationship(
-        back_populates="geometrie"
+        "SpoorkabelVersieDetail", back_populates="geometrie"
     )

@@ -18,12 +18,14 @@ class Versie(Base):
     tekening_id: Mapped[int] = mapped_column(
         ForeignKey("tekeningen.id"), nullable=False
     )
-    versie_naam: Mapped[str] = mapped_column(String(50))  # Bijv. "X", "Y", "Z"
-    export_datum: Mapped[datetime] = mapped_column(DateTime)  # Datum uit de Excel
-    upload_datum: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    versie: Mapped[str | None] = mapped_column(String)
+    discipline: Mapped[str | None] = mapped_column(String)
+    download_date: Mapped[datetime | None] = mapped_column(DateTime)
+    geocode_naam: Mapped[str] = mapped_column(String(50))
+    export_date: Mapped[datetime] = mapped_column(DateTime)
 
     # Relaties
-    tekening: Mapped["Tekening"] = relationship(back_populates="versies")
+    tekening: Mapped["Tekening"] = relationship("Tekening", back_populates="versies")
     spoorkabel_details: Mapped[list["SpoorkabelVersieDetail"]] = relationship(
-        back_populates="versie"
+        "SpoorkabelVersieDetail", back_populates="versie"
     )
