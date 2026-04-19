@@ -6,13 +6,14 @@ from sqlalchemy import ForeignKey, Integer
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from .base import Base
+from .mixins import TimestampMixin
 
 if TYPE_CHECKING:
     from .tekening_model import Tekening
     from .user_model import User
 
 
-class Upload(Base):
+class Upload(TimestampMixin, Base):
     __tablename__ = "upload"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)

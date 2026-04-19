@@ -14,7 +14,6 @@ from models import (
     Project,
     ProrailGil,
     Spoorkabel,
-    SpoorkabelGeometrie,
     SpoorkabelProrailRelation,
     SpoorkabelVersieDetail,
     Tekening,
@@ -23,6 +22,9 @@ from models import (
     UserLogin,
     UserSettings,
     Versie,
+    VersieBestaand,
+    VersieOntwerp,
+    VersieOntwerpFase,
 )
 from sqlalchemy import inspect, text
 
@@ -35,7 +37,6 @@ EXPECTED_TABLES = {
     "projecten": Project,
     "prorail_gil": ProrailGil,
     "spoorkabel": Spoorkabel,
-    "spoorkabel_geometrieen": SpoorkabelGeometrie,
     "spoorkabel_prorail_feature_relation": SpoorkabelProrailRelation,
     "kabel_versie_details": SpoorkabelVersieDetail,
     "tekeningen": Tekening,
@@ -44,6 +45,9 @@ EXPECTED_TABLES = {
     "user_logins": UserLogin,
     "user_settings": UserSettings,
     "versies": Versie,
+    "versie_bestaand": VersieBestaand,
+    "versie_ontwerp": VersieOntwerp,
+    "versie_ontwerp_fase": VersieOntwerpFase,
 }
 
 
@@ -95,7 +99,7 @@ def check_geometry_columns(conn):
         {
             "tables": [
                 "spoorkabel",
-                "spoorkabel_geometrieen",
+                "kabel_versie_details",
                 "full_spoorkabel",
                 "prorail_gil",
             ]

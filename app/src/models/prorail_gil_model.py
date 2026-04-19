@@ -4,19 +4,23 @@ from datetime import datetime
 from typing import TYPE_CHECKING
 
 from geoalchemy2 import Geometry
-from sqlalchemy import DateTime, Integer, String
+from sqlalchemy import DateTime, ForeignKey, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from .base import Base
 
 if TYPE_CHECKING:
     from .spoorkabel_prorail_relation import SpoorkabelProrailRelation
+    from .tekening_model import Tekening
 
 
 class ProrailGil(Base):
     __tablename__ = "prorail_gil"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    tekening_id: Mapped[int] = mapped_column(
+        ForeignKey("tekeningen.id"), nullable=False
+    )
 
     geom: Mapped[object] = mapped_column(
         Geometry("MULTILINESTRING", srid=28992), nullable=True
@@ -30,6 +34,9 @@ class ProrailGil(Base):
     feature_type: Mapped[str | None] = mapped_column(String(32))
     discipline: Mapped[str | None] = mapped_column(String)
 
+    tekening: Mapped["Tekening"] = relationship(
+        "Tekening", back_populates="prorail_gils"
+    )
     spoorkabel_relations: Mapped[list["SpoorkabelProrailRelation"]] = relationship(
         "SpoorkabelProrailRelation", back_populates="prorail_gil"
     )

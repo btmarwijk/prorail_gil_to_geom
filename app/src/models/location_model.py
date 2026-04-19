@@ -1,7 +1,7 @@
 from typing import TYPE_CHECKING
 
 from geoalchemy2 import Geometry
-from sqlalchemy import Integer, String
+from sqlalchemy import ForeignKey, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from .base import Base
@@ -16,6 +16,7 @@ class Location(Base):
 
     # Primary key
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    tekening_id: Mapped[int] = mapped_column(ForeignKey("tekeningen.id"))
 
     # Dutch administrative divisions
     provincie: Mapped[str] = mapped_column(String(100), nullable=False)

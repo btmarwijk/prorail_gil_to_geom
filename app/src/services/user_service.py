@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import Optional
 
-from models import User  # Adjust import based on your file structure
+from models import User
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 

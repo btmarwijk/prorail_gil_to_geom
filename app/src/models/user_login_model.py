@@ -40,7 +40,7 @@ class UserLogin(Base):
     )  # 'password', 'google_oauth', 'magic_link'
 
     # Relationship back to User
-    user: Mapped["User"] = relationship("User", back_populates="login_history")
+    user: Mapped["User"] = relationship("User", back_populates="user_logins")
 
     # Add an index on (user_id, timestamp) for fast history lookups
     __table_args__ = (Index("ix_user_login_user_time", "user_id", "timestamp"),)

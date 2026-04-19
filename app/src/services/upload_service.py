@@ -1,13 +1,155 @@
-import io
+from dataclasses import asdict
 
 import pandas as pd
-from utils.excel_reader import ExcelReader
+from core.database import SessionLocal
+from models import (
+    Tekening,
+    Upload,
+    User,
+    VersieBestaand,
+    VersieOntwerp,
+    VersieOntwerpFase,
+)
+from sqlalchemy import select
+from utils.excel_reader import ExcelReader, ExcelReaderResult
 
 
 # --- The Logic Layer (Service) ---
-class UploadProcessor:
-    def __init__(self, preview_rows: int = 5):
-        self.preview_rows = preview_rows
+class UploadService:
+    def __init__(self):
+        self.db = SessionLocal()
 
-    def process(self, file_bytes: bytes) -> pd.DataFrame:
-        return ExcelReader(io.BytesIO(file_bytes))
+    def get_user_by_id(self, id: int = 1) -> None:
+        user = self.db.scalars(select(User).where(User.id == 1)).first()
+        if not user:
+            raise ValueError(f"User {user} not found")
+        self.user = user
+
+    def process(self, excel_file) -> pd.DataFrame:
+        return ExcelReader(excel_file).render()
+
+    def process_manual(self, excel_file: list[ExcelReaderResult]):
+        self.processed_excel = ExcelReader(excel_file[0]).render()[0]
+
+    def _add_upload(self):
+        upload = Upload(user_id=self.user.id)
+        self.db.add(upload)
+        self.db.commit()
+        self.upload = upload
+        return upload
+
+    def _add_tekening(self):
+        tekeningnaam = self.processed_excel.metadata.gil
+
+        stmt = select(Tekening).where(Tekening.naam == tekeningnaam)
+        tekening = self.db.scalars(stmt).first()
+
+        if not tekening:
+            tekening = Tekening(
+                upload_id=self.upload.id, naam=self.processed_excel.metadata.gil
+            )
+            self.db.add(tekening)
+            self.db.commit()
+            self.db.refresh(tekening)
+
+        self.tekening = tekening
+        return tekening
+
+    def _add_versie(self):
+        versie_bestaand = self._add_versie_bestaand()
+        versie_ontwerp = None
+        versie_ontwerp_fases = None
+        if self.processed_excel.type == "ontwerp":
+            versie_ontwerp = self._add_versie_ontwerp(versie_bestaand)
+            versie_ontwerp_fases = self._add_versie_ontwerp_fase(versie_ontwerp)
+
+        return [versie_bestaand, versie_ontwerp, versie_ontwerp_fases]
+
+    def _add_versie_bestaand(self):
+        versie_code = self.processed_excel.metadata.versie
+
+        stmt = select(VersieBestaand).where(VersieBestaand.versie_code == versie_code)
+        versie_bestaand = self.db.scalars(stmt).first()
+
+        if not versie_bestaand:
+            versie_bestaand = VersieBestaand(
+                tekening_id=self.tekening.id,
+                geocodenaam=self.processed_excel.metadata.geocodenaam,
+                regio=self.processed_excel.metadata.gebied,
+                versie_code=versie_code,
+                aantal_regels=100,
+                hoogste_gil=1000,
+            )
+            self.db.add(versie_bestaand)
+            self.db.commit()
+
+        return versie_bestaand
+
+    def _add_versie_ontwerp(self, versie_bestaand: VersieBestaand):
+        versie_ini_code = self.processed_excel.metadata_new.versie_ini
+
+        stmt = select(VersieOntwerp).where(VersieOntwerp.versie_ini == versie_ini_code)
+        versie_ontwerp = self.db.scalars(stmt).first()
+
+        if not versie_ontwerp:
+            versie_ontwerp = VersieOntwerp(
+                tekening_id=self.tekening.id,
+                geocodenaam=self.processed_excel.metadata.geocodenaam,
+                versie_ini=versie_ini_code,
+                regio=self.processed_excel.metadata.gebied,
+                parent_versie_bestaand_id=versie_bestaand.id,
+            )
+
+            self.db.add(versie_ontwerp)
+            self.db.commit()
+
+        return versie_ontwerp
+
+    def _order_fases(self) -> dict[str, dict]:
+        metadata_new = self.processed_excel.metadata_new
+        ab = {k: v for k, v in asdict(metadata_new).items() if "ab" in k}
+        rr = {k: v for k, v in asdict(metadata_new).items() if "rr" in k}
+        tb = {k: v for k, v in asdict(metadata_new).items() if "tb" in k}
+
+        return {"ab": ab, "rr": rr, "tb": tb}
+
+    def _add_versie_ontwerp_fase(self, versie_ontwerp: VersieOntwerp):
+        fases = self._order_fases()
+
+        results = []
+        for key, fase in fases.items():
+            _versie = fase.get(f"versie_{key}")
+            _aantal_regels = fase.get(f"aantal regels_{key}")
+            _prorail_projectnr = fase.get(f"prorail_projectnr_{key}")
+            _hoogste_gil = fase.get(f"hoogste_gil_{key}")
+
+            stmt = select(VersieOntwerpFase).where(VersieOntwerpFase.fase_code == key)
+            versie_ontwerp_fase = self.db.scalars(stmt).first()
+
+            if not versie_ontwerp_fase:
+                versie_ontwerp_fase = VersieOntwerpFase(
+                    versie_ontwerp_id=versie_ontwerp.id,
+                    fase_code=key,
+                    versie_code=_versie,
+                    aantal_regels=_aantal_regels,
+                    hoogste_gil=_hoogste_gil,
+                    prorail_projectnr=_prorail_projectnr,
+                )
+
+                self.db.add(versie_ontwerp_fase)
+                self.db.commit()
+                results.append(versie_ontwerp_fase)
+
+        return results
+
+
+if __name__ == "__main__":
+    from core.config import test_files
+
+    uploader = UploadService()
+    uploader.get_user_by_id()
+    uploader.process_manual(excel_file=[test_files.DEN_HAAG_FILE_1_KS])
+    upload = uploader._add_upload()
+    tekening = uploader._add_tekening()
+    versie = uploader._add_versie()
+    print(upload, tekening, versie)

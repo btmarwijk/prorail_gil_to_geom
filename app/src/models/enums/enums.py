@@ -1,14 +1,14 @@
-from enum import Enum
+from enum import StrEnum
 
 
-class SpoorkabelStatus(Enum):
+class SpoorkabelStatus(StrEnum):
     NIEUW = "Nieuw"
     ONGEWIJZIGD = "Ongewijzigd"
     GEWIJZIGD = "Gewijzigd"
     VERWIJDERD = "Verwijderd"
 
 
-class Groep(Enum):
+class Groep(StrEnum):
     TELECOM = "Telecom"
     ENERGIE = "Energie"
     BEVEILIGING = "Beveiliging"
@@ -22,7 +22,7 @@ class Groep(Enum):
     LEEG = ""
 
 
-class Subgroep(Enum):
+class Subgroep(StrEnum):
     # --- Telecom ---
     GLASVEZEL = "Glasvezel"
     INTERLOKALE_TELECOM = "Interlokale Telecom"
@@ -109,7 +109,7 @@ class Subgroep(Enum):
     LEEG = ""
 
 
-class GILType(Enum):
+class GILType(StrEnum):
     GEUL = "Geul"
     KOKERTRACE = "Kokertrace"
     WATERKRUISING = "Waterkruising"
@@ -118,14 +118,14 @@ class GILType(Enum):
     TIJDELIJKE_GEUL = "Tijdelijke Geul"
 
 
-class GILDiscipline(Enum):
+class GILDiscipline(StrEnum):
     KABEL_SITUATIE = "KS"
     RIOOLDRAINAGE = "RD"
     WISSELVERWARMING = "WV"
     WATERBRANDLEIDING = "WB"
 
 
-class UserRole(str, Enum):
+class UserRole(StrEnum):
     # Ultimate access; can manage system settings and other administrators.
     SUPER_ADMIN = "super_admin"
 

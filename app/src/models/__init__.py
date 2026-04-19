@@ -4,9 +4,10 @@ from .group_membership_relation import GroupMembershipRelation
 from .group_model import Group
 from .group_project_relation import GroupProjectRelation
 from .location_model import Location
+from .organization_member_model import OrganizationMember
+from .organization_model import Organization
 from .project_model import Project
 from .prorail_gil_model import ProrailGil
-from .spoorkabel_geometrie import SpoorkabelGeometrie
 from .spoorkabel_model import Spoorkabel
 from .spoorkabel_prorail_relation import SpoorkabelProrailRelation
 from .spoorkabel_versie_relation import SpoorkabelVersieDetail
@@ -15,18 +16,16 @@ from .upload_model import Upload
 from .user_login_model import UserLogin
 from .user_model import User
 from .user_settings_model import UserSettings
-from .versie_model import Versie
+from .versie_model import Versie, VersieBestaand, VersieOntwerp, VersieOntwerpFase
 
-__all__ = [
+CORE_MODELS = [
     "Base",
     "FullSpoorkabel",
     "GroupMembershipRelation",
     "Group",
     "GroupProjectRelation",
     "Location",
-    "Project",
     "ProrailGil",
-    "SpoorkabelGeometrie",
     "Spoorkabel",
     "SpoorkabelProrailRelation",
     "SpoorkabelProrailRelation",
@@ -36,5 +35,10 @@ __all__ = [
     "User",
     "UserLogin",
     "UserSettings",
-    "Versie",
 ]
+
+VERSIE_MODELS = ["Versie", "VersieBestaand", "VersieOntwerp", "VersieOntwerpFase"]
+
+ORGANIZATION_MODELS = ["Organization", "OrganizationMember"]
+
+__all__ = CORE_MODELS + VERSIE_MODELS + ORGANIZATION_MODELS

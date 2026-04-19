@@ -40,4 +40,4 @@ class UserSettings(Base):
     extra_config: Mapped[dict | None] = mapped_column(JSON, nullable=True)
 
     # Relationship back to User
-    user: Mapped["User"] = relationship("User", back_populates="settings")
+    user: Mapped["User"] = relationship("User", back_populates="user_settings")

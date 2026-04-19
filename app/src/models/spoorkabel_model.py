@@ -11,7 +11,6 @@ from .base import Base
 
 if TYPE_CHECKING:
     from .full_spoorkabel import FullSpoorkabel
-    from .spoorkabel_prorail_relation import SpoorkabelProrailRelation
     from .spoorkabel_versie_relation import SpoorkabelVersieDetail
 
 
@@ -19,9 +18,6 @@ class Spoorkabel(Base):
     __tablename__ = "spoorkabel"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    versie_details_id: Mapped[int] = mapped_column(
-        ForeignKey("kabel_versie_details.id"), nullable=False
-    )
     full_spoorkabel_id: Mapped[int | None] = mapped_column(
         ForeignKey("full_spoorkabel.id"), nullable=True
     )
@@ -43,12 +39,10 @@ class Spoorkabel(Base):
     tekeningnaam: Mapped[str | None] = mapped_column(String)
     created_at: Mapped[datetime | None] = mapped_column(DateTime)
 
-    versie_details: Mapped[SpoorkabelVersieDetail] = relationship(
-        "SpoorkabelVersieDetail", back_populates="spoorkabel"
+    versie_details: Mapped[list[SpoorkabelVersieDetail]] = relationship(
+        "SpoorkabelVersieDetail",
+        back_populates="spoorkabel",
     )
     full_spoorkabel: Mapped["FullSpoorkabel | None"] = relationship(
         "FullSpoorkabel", back_populates="spoorkabel"
-    )
-    prorail_relations: Mapped[list["SpoorkabelProrailRelation"]] = relationship(
-        "SpoorkabelProrailRelation", back_populates="spoorkabel"
     )

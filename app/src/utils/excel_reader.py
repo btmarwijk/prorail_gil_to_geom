@@ -1,105 +1,256 @@
 import warnings
+from dataclasses import dataclass
+from io import BytesIO
+from typing import Any, Literal, Tuple
 
 import numpy as np
 import openpyxl
 import pandas as pd
 from core import logger
-from schemas.meta_spoorkabel_schema import MetaSpoorkabelCreate
+from core.config import test_files
+from schemas.spoorkabel_schema import SpoorkabelCreate
+from utils.versie_subtract import decrement_string
 
 warnings.filterwarnings("ignore", category=UserWarning, module="openpyxl")
-# --- All Column names ---
-# ['OUD/NIEUW', 'KABELNUMMER', 'KABEL_GEBOREN', 'KABELNAAM',
-# 'KABELNAAM_OUD', 'VAN', 'NAAR', 'KABELTYPE', 'GROEP', 'SUB_GROEP',
-# 'VAN_GIL', 'NAAR_GIL', 'OPMERKING', 'GEULEN', 'MAX_LENGTE', 'TB_LENGTE',
-# 'AB_LENGTE', 'REGELNUMMER']
 
 
-class ExcelReader:
-    """
-    A utility class to read, filter, and transform ProRail Excel files containing cable data.
+@dataclass
+class ExistingMetaData:
+    gil: str
+    gebied: str
+    versie: str
+    aantal_regels: int
+    geocodenaam: str
+    gedownload: str
+    hoogste_gil: int
+    is_reversed_engineerd: bool = False
 
-    This class handles the extraction of metadata (tekeningnaam, geocodenaam, gedownload (datetime)),
-    identifies the header row dynamically, and provides methods to export the
-    data to DataFrames, Pydantic models, or ArcGIS services.
-    """
 
-    def __init__(
-        self,
-        file_source: str,
-        remove_empty_geulen: bool = True,
-        remove_duplicate_geulen: bool = False,
-    ) -> None:
+@dataclass
+class DesignMetaData:
+    gil: str
+    regio: str
+    versie_ini: str
+    aantal_regels_ini: int
+    geocodenaam: str
+    gedownload: str
+    hoogste_gil_ini: int
+
+    versie_ab: str | None = None
+    versie_rr: str | None = None
+    versie_tb: str | None = None
+
+    aantal_regels_ab: int | None = None
+    aantal_regels_rr: int | None = None
+    aantal_regels_tb: int | None = None
+
+    prorail_projectnr_ab: str | None = None
+    prorail_projectnr_rr: str | None = None
+    prorail_projectnr_tb: str | None = None
+
+    hoogste_gil_ab: int | None = None
+    hoogste_gil_rr: int | None = None
+    hoogste_gil_tb: int | None = None
+
+
+@dataclass
+class ExcelFileReaderResult:
+    metadata: Any
+    dataframe: pd.DataFrame
+    new_tekening: bool
+
+    class Config:
+        arbitrary_types_allowed = True
+
+
+class ExcelFileReaderResponse:
+    results: list[ExcelFileReaderResult]
+
+
+class ExcelFileReader:
+    def __init__(self, file_source: str | BytesIO):
         self.file_source = file_source
-        self.remove_empty_geulen = remove_empty_geulen
-        self.remove_duplicate_geulen = remove_duplicate_geulen
-        self.tekeningnamen = []
-        self._render()
+        self._new_tekening = False
 
-    def __repr__(self) -> str:
-        return (
-            f"<ExcelFile Shape_raw={self._raw_shape}, "
-            f"Shape_withouth_empty={self._shape_without_empty}, "
-            f"Shape_withouty_duplicates={self._shape_without_duplicates}, "
-            f"Tekeningnamen={self.tekeningnamen}, "
-            f"Header_row=({self._header_row}) />"
-        )
+    def _excel_file(self) -> openpyxl.Workbook:
+        # Als file_source een BytesIO object is, zorg dat de pointer op 0 staat
+        if isinstance(self.file_source, bytes):
+            self.file_source = BytesIO(self.file_source)
 
-    @property
-    def tekeningnamen_str(self) -> str:
-        return ", ".join(f"'{n}'" for n in self.tekeningnamen)
-
-    def get_tekeningnamen_str(self) -> str:
-        """Returns a comma-separated string of drawing names wrapped in single quotes."""
-        return ", ".join(f"'{n}'" for n in self.tekeningnamen)
-
-    @property
-    def excel_file(self) -> openpyxl.Workbook:
+        # load_workbook accepteert zowel een pad (string) als een BytesIO object
         return openpyxl.load_workbook(self.file_source, data_only=True)
 
-    @property
-    def _sheet_names(self) -> list[str]:
-        return self.excel_file.sheetnames
-
-    @property
-    def _has_multiple_sheets(self) -> bool:
-        if len(self._sheet_names) == 1:
-            return False
-        if len(self._sheet_names) > 1:
-            return True
-
-    def _get_cell_value_by_label(
-        self, sheet_name: str, label_cell: str, value_cell: str, expected_label: str
-    ) -> str:
-        """
-        Generic helper to validate a label and return the corresponding value from an Excel sheet.
-        """
-        ws = self.excel_file[sheet_name]
-        label_val = ws[label_cell].value
-        value_val = ws[value_cell].value
-
-        if label_val != expected_label:
-            raise ValueError(f"Expected '{expected_label}' in cell {label_cell}")
-
-        if value_val is None:
-            raise ValueError(
-                f"Cell {value_cell} is empty. {expected_label} is required."
-            )
-
-        return value_val
-
-    def _find_header_row(self, sheet_name: str) -> int:
-        ws = self.excel_file[sheet_name]
+    def _find_header_row(self, ws) -> int:
         target_columns = {"KABELNUMMER", "KABEL_GEBOREN"}
         for row in ws.iter_rows(values_only=False):
             for cell in row:
                 if cell.value in target_columns:
                     return cell.row
+        return None
+
+    def read_sheets(self):
+        wb = self._excel_file()
+        results = []
+        for ws in wb.worksheets:
+            if ws.cell(row=2, column=3).value == "VERSIE_AB:":
+                self._new_tekening = True
+
+            header_row_num = self._find_header_row(ws)
+
+            if header_row_num:
+                # 1. Convert all worksheet values to a list of lists
+                # openpyxl is 1-indexed, so row 5 is index 4 in a list
+                all_data = list(ws.values)
+                header_idx = header_row_num - 1
+
+                # 2. Extract metadata (everything above the header)
+                metadata = all_data[:header_idx]
+
+                # 3. Extract DataFrame data (header row + everything below)
+                df_data = all_data[header_idx:]
+
+                # Create DataFrame using the first row of df_data as columns
+                df = pd.DataFrame(df_data[1:], columns=df_data[0])
+
+            else:
+                print(f"Target headers not found in sheet: {ws.title}")
+
+            results.append(
+                ExcelFileReaderResult(
+                    metadata=metadata, dataframe=df, new_tekening=self._new_tekening
+                )
+            )
+
+        return results
+
+
+class ExcelMetaDataReader:
+    def __init__(self, raw_data: ExcelFileReaderResult):
+        self.raw_data = raw_data
+
+    def _get_value_by_label(self, label_item: str) -> Any:
+        """
+        Searches for label_item in a 2D list/tuple structure
+        and returns the value from the next index.
+        """
+        # Ensure we match the colon if the user didn't provide it
+        if not label_item.endswith(":"):
+            label_item += ":"
+
+        for row in self.raw_data.metadata:
+            for index, item in enumerate(row):
+                if item == label_item:
+                    # Ensure there is an index after the label
+                    if index + 1 < len(row):
+                        return row[index + 1]
+        return None
+
+    def _get_metadata_existing(self):
+        gebied = self._get_value_by_label("GEBIED:")
+        regio = self._get_value_by_label("REGIO:")
+
+        gebied_input = gebied or regio
+
+        metadata = ExistingMetaData(
+            gil=self._get_value_by_label("GIL:"),
+            gebied=gebied_input,
+            versie=self._get_value_by_label("VERSIE:"),
+            aantal_regels=self._get_value_by_label("AANTAL_REGELS:"),
+            geocodenaam=self._get_value_by_label("GEOCODENAAM:"),
+            gedownload=self._get_value_by_label("GEDOWNLOAD:"),
+            hoogste_gil=self._get_value_by_label("HOOGSTE_GIL:"),
+        )
+
+        return metadata
+
+    def _get_metadata_design(self):
+        gebied = self._get_value_by_label("GEBIED:")
+        regio = self._get_value_by_label("REGIO:")
+
+        gebied_input = gebied or regio
+
+        _versie1 = self._get_value_by_label("VERSIE_INI:")
+        _versie2 = self._get_value_by_label("VERSIE:")
+
+        versie = _versie1 or _versie2
+
+        versie_subtracted = decrement_string(versie)
+
+        metadata = ExistingMetaData(
+            gil=self._get_value_by_label("GIL:"),
+            gebied=gebied_input,
+            versie=versie_subtracted,
+            aantal_regels=self._get_value_by_label("AANTAL_REGELS:") or None,
+            geocodenaam=self._get_value_by_label("GEOCODENAAM:") or None,
+            gedownload=self._get_value_by_label("GEDOWNLOAD:") or None,
+            hoogste_gil=self._get_value_by_label("HOOGSTE_GIL:") or None,
+            is_reversed_engineerd=True,
+        )
+
+        metadata_new = DesignMetaData(
+            gil=self._get_value_by_label("GIL:"),
+            regio=self._get_value_by_label("REGIO:"),
+            versie_ini=self._get_value_by_label("VERSIE_INI:"),
+            versie_ab=self._get_value_by_label("VERSIE_AB:"),
+            versie_rr=self._get_value_by_label("VERSIE_RR:"),
+            versie_tb=self._get_value_by_label("VERSIE_TB:"),
+            aantal_regels_ini=int(
+                self._get_value_by_label("AANTAL REGELS_INI:") or None
+            ),
+            aantal_regels_ab=self._get_value_by_label("AANTAL REGELS_AB:"),
+            aantal_regels_rr=self._get_value_by_label("AANTAL REGELS_RR:"),
+            aantal_regels_tb=self._get_value_by_label("AANTAL REGELS_TB:"),
+            geocodenaam=self._get_value_by_label("GEOCODENAAM:"),
+            prorail_projectnr_ab=self._get_value_by_label("PRORAIL PROJECTNR_AB:"),
+            prorail_projectnr_rr=self._get_value_by_label("PRORAIL PROJECTNR_RR:"),
+            prorail_projectnr_tb=self._get_value_by_label("PRORAIL PROJECTNR_TB:"),
+            gedownload=self._get_value_by_label("GEDOWNLOAD:"),
+            hoogste_gil_ini=self._get_value_by_label("HOOGSTE GIL_INI:"),
+            hoogste_gil_ab=self._get_value_by_label("HOOGSTE GIL_AB:"),
+            hoogste_gil_rr=self._get_value_by_label("HOOGSTE GIL_RR:"),
+            hoogste_gil_tb=self._get_value_by_label("HOOGSTE GIL_TB:"),
+        )
+
+        return metadata, metadata_new
+
+    def get_metadata(self) -> Tuple[Tuple[list], Tuple[list] | None]:
+        if self.raw_data.new_tekening:
+            # Design metadata
+            metadata, metadata_new = self._get_metadata_design()
+            return (metadata, metadata_new)
+
+        # Existing metadata
+        metadata = self._get_metadata_existing()
+        return (metadata, None)
+
+
+class ExcelSheetReader:
+    def __init__(
+        self,
+        raw_data: ExcelFileReaderResult,
+        remove_empty_geulen: bool = True,
+        remove_duplicate_geulen: bool = False,
+    ) -> None:
+        self._df = raw_data.dataframe
+        self.remove_empty_geulen = remove_empty_geulen
+        self.remove_duplicate_geulen = remove_duplicate_geulen
+        self._new_tekening: bool = raw_data.new_tekening
+        self._render()
+
+    def _split_new_old(self, df: pd.DataFrame) -> Tuple[pd.DataFrame, pd.DataFrame]:
+        if self._new_tekening:
+            df_old = df[df["OUD/NIEUW"] == "OUD"]
+            df_new = df[df["OUD/NIEUW"] == "NIEUW"]
+            return df_old, df_new
+
+        return df, None
 
     def _filter_rows(
         self,
         df: pd.DataFrame,
     ) -> pd.DataFrame:
         self._raw_shape = df.shape
+
         df_without_empty = df.dropna(subset=["KABELNUMMER", "GEULEN"])
         self._shape_without_empty = df_without_empty.shape
         df_without_duplicates = df_without_empty.drop_duplicates(subset=["GEULEN"])
@@ -116,88 +267,95 @@ class ExcelReader:
 
         return df
 
-    def _read_single_sheet(self, sheet_name: str | None = None) -> pd.DataFrame:
-        # Metadata on the input table added as column
-        tekeningnaam = self._get_cell_value_by_label(
-            sheet_name=sheet_name,
-            label_cell="A1",
-            value_cell="B1",
-            expected_label="GIL:",
-        )
-        self.versie = self._get_cell_value_by_label(
-            sheet_name=sheet_name,
-            label_cell="C1",
-            value_cell="D1",
-            expected_label="VERSIE:",
-        )
-        self.geocodenaam = self._get_cell_value_by_label(
-            sheet_name=sheet_name,
-            label_cell="G1",
-            value_cell="H1",
-            expected_label="GEOCODENAAM:",
-        )
-        self.gedownload = self._get_cell_value_by_label(
-            sheet_name=sheet_name,
-            label_cell="I1",
-            value_cell="J1",
-            expected_label="GEDOWNLOAD:",
-        )
-
-        # header_row is the index of the row containing the column names
-        self._header_row = self._find_header_row(sheet_name=sheet_name)
-
-        df: pd.DataFrame = pd.read_excel(
-            self.file_source,
-            sheet_name=sheet_name,
-            skiprows=self._header_row - 1,
-        )
-
-        df["tekeningnaam"] = tekeningnaam
-        self.tekeningnamen.append(tekeningnaam)
-
-        df["geocodenaam"] = self.geocodenaam
-        df["gedownload"] = self.gedownload
-        df["versie"] = self.versie
-        return df
-
-    def _read_multiple_sheets(self) -> pd.DataFrame:
-        dfs = []
-        for sheet_name in self._sheet_names:
-            _df = self._read_single_sheet(sheet_name=sheet_name)
-            dfs.append(_df)
-
-        return pd.concat(dfs, ignore_index=True)
-
     def _render(self) -> None:
         logger.info("Reading the prorail excel-file...")
 
-        df = (
-            self._read_multiple_sheets()
-            if self._has_multiple_sheets
-            else self._read_single_sheet(sheet_name=self._sheet_names[0])
-        )
+        df = self._df
+        df = df.replace("", None)
+        df = df.dropna(axis=1, how="all")
+
         self._raw_shape = df.shape
         self.table: pd.DataFrame = (
             self._filter_rows(df=df).reset_index(drop=True).replace({np.nan: None})
         )
 
-    def to_dataframe(self) -> pd.DataFrame:
-        return self.table
+    def to_pydantic_create(
+        self,
+    ) -> Tuple[list[SpoorkabelCreate], list[SpoorkabelCreate] | None]:
+        if self._new_tekening:
+            df_old, df_new = self._split_new_old(self.table)
+            records = df_old.to_dict(orient="records")
+            records_new = df_new.to_dict(orient="records")
+            parsed = [SpoorkabelCreate(**record) for record in records]
+            parsed_new = [SpoorkabelCreate(**record) for record in records_new]
+            return (parsed, parsed_new)
 
-    def to_dict(self) -> list[dict]:
-        return self.table.to_dict(orient="records")
+        df_old, _ = self._split_new_old(self.table)
+        records = df_old.to_dict(orient="records")
 
-    def to_pydantic_create(self) -> list[MetaSpoorkabelCreate]:
-        records = self.to_dict()
-        return [MetaSpoorkabelCreate(upload_guid=None, **record) for record in records]
+        return ([SpoorkabelCreate(**record) for record in records], None)
+
+
+@dataclass
+class ExcelReaderResult:
+    type: Literal["bestaand", "ontwerp"]
+    metadata: ExistingMetaData
+    metadata_new: DesignMetaData | None
+    records: list[SpoorkabelCreate]
+    records_new: list[SpoorkabelCreate] | None
+
+
+class ExcelReader:
+    def __init__(self, file_source: str):
+        self.file_reader = ExcelFileReader(file_source=file_source)
+        self.results = []
+
+    def render(self) -> list[ExcelReaderResult]:
+        """
+        Orchestrates the reading, metadata extraction,
+        and table conversion for all sheets.
+        """
+        # 1. Get the raw data from the file
+        raw_sheets = self.file_reader.read_sheets()
+
+        for sheet in raw_sheets:
+            # 2. Extract Metadata
+            # (Assuming sheet is the dict/object returned by your FileReader)
+            metadata, metadata_new = ExcelMetaDataReader(raw_data=sheet).get_metadata()
+
+            if metadata_new:
+                type = "ontwerp"
+            else:
+                type = "bestaand"
+
+            # 3. Convert Table data to Pydantic models
+            records = ExcelSheetReader(raw_data=sheet).to_pydantic_create()[0]
+            records_new = ExcelSheetReader(raw_data=sheet).to_pydantic_create()[1]
+
+            # 4. Store the combined result
+            self.results.append(
+                ExcelReaderResult(
+                    **{
+                        "type": type,
+                        "metadata": metadata,
+                        "metadata_new": metadata_new,
+                        "records": [r.model_dump() for r in records],
+                        "records_new": [r.model_dump() for r in records_new]
+                        if records_new
+                        else None,
+                    }
+                )
+            )
+
+        return self.results
 
 
 if __name__ == "__main__":
-    pass
-    # reader = ExcelReader(
-    #     file_path=test_files.SINGLE_KABEL_FILE,
-    #     remove_empty_geulen=True,
-    #     remove_duplicate_geulen=False,
-    # )
-    # results: list[MetaSpoorkabelCreate] = reader.to_pydantic_create()
-    # print(results[10].model_dump(by_alias=True))
+    input_files = [test_files.SMALL_SINGLE_FILE]
+
+    for file in input_files:
+        reader = ExcelReader(file_source=file)
+        processed_data = reader.render()
+
+        print(processed_data[0].metadata)
+        print(processed_data[0].metadata_new)
