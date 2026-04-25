@@ -6,7 +6,6 @@ Run this once to create all tables and confirm they landed correctly.
 
 from core.database import engine, init_db
 from models import (
-    FullSpoorkabel,
     Group,
     GroupMembershipRelation,
     GroupProjectRelation,
@@ -29,7 +28,6 @@ from models import (
 from sqlalchemy import inspect, text
 
 EXPECTED_TABLES = {
-    "full_spoorkabel": FullSpoorkabel,
     "groups": Group,
     "group_members": GroupMembershipRelation,
     "group_project_relations": GroupProjectRelation,

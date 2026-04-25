@@ -4,6 +4,7 @@ from sqlalchemy import Boolean, ForeignKey, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from .base import Base
+from .mixins import TimestampMixin
 from .spoorkabel_versie_relation import SpoorkabelVersieDetail
 
 if TYPE_CHECKING:
@@ -18,8 +19,6 @@ class Versie(Base):
         ForeignKey("tekeningen.id"), nullable=False
     )
     versie_type: Mapped[str] = mapped_column(String(32))
-    geocodenaam: Mapped[str] = mapped_column(String(50))
-    regio: Mapped[str] = mapped_column(String(64))
 
     # Relaties
     tekening: Mapped["Tekening"] = relationship("Tekening", back_populates="versies")
@@ -30,7 +29,7 @@ class Versie(Base):
     __mapper_args__ = {"polymorphic_on": "versie_type", "polymorphic_identity": "base"}
 
 
-class VersieBestaand(Versie):
+class VersieBestaand(TimestampMixin, Versie):
     __tablename__ = "versie_bestaand"
 
     id: Mapped[int] = mapped_column(ForeignKey("versies.id"), primary_key=True)
@@ -49,7 +48,7 @@ class VersieBestaand(Versie):
     pass
 
 
-class VersieOntwerp(Versie):
+class VersieOntwerp(TimestampMixin, Versie):
     __tablename__ = "versie_ontwerp"
 
     id: Mapped[int] = mapped_column(ForeignKey("versies.id"), primary_key=True)
@@ -69,7 +68,7 @@ class VersieOntwerp(Versie):
     __mapper_args__ = {"polymorphic_identity": "ontwerp"}
 
 
-class VersieOntwerpFase(Base):
+class VersieOntwerpFase(TimestampMixin, Base):
     __tablename__ = "versie_ontwerp_fase"
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)

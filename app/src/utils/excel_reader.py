@@ -190,7 +190,7 @@ class ExcelMetaDataReader:
         metadata_new = DesignMetaData(
             gil=self._get_value_by_label("GIL:"),
             regio=self._get_value_by_label("REGIO:"),
-            versie_ini=self._get_value_by_label("VERSIE_INI:"),
+            versie_ini=versie,
             versie_ab=self._get_value_by_label("VERSIE_AB:"),
             versie_rr=self._get_value_by_label("VERSIE_RR:"),
             versie_tb=self._get_value_by_label("VERSIE_TB:"),
@@ -338,11 +338,9 @@ class ExcelReader:
                     **{
                         "type": type,
                         "metadata": metadata,
-                        "metadata_new": metadata_new,
-                        "records": [r.model_dump() for r in records],
-                        "records_new": [r.model_dump() for r in records_new]
-                        if records_new
-                        else None,
+                        "metadata_new": metadata_new if metadata_new else None,
+                        "records": records,
+                        "records_new": records_new if records_new else None,
                     }
                 )
             )

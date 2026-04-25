@@ -1,5 +1,6 @@
 from .base import Base
-from .full_spoorkabel import FullSpoorkabel
+
+# from .full_spoorkabel import FullSpoorkabel
 from .group_membership_relation import GroupMembershipRelation
 from .group_model import Group
 from .group_project_relation import GroupProjectRelation
@@ -20,7 +21,6 @@ from .versie_model import Versie, VersieBestaand, VersieOntwerp, VersieOntwerpFa
 
 CORE_MODELS = [
     "Base",
-    "FullSpoorkabel",
     "GroupMembershipRelation",
     "Group",
     "GroupProjectRelation",

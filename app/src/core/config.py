@@ -1,7 +1,7 @@
 from pathlib import Path
 
 from dotenv import dotenv_values
-from pydantic import BaseModel
+from pydantic import BaseModel, computed_field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 config = dotenv_values()
@@ -25,6 +25,13 @@ class Settings(BaseSettings):
         extra="ignore",  # Ignores extra variables in .env not defined here
     )
 
+    PRORAIL_FEATURE_SERVER_KS: str = (
+        "https://maps.prorail.nl/arcgis/rest/services/Kabelsituatie/FeatureServer"
+    )
+    PRORAIL_FEATURE_SERVER_WV: str = "https://maps.prorail.nl/arcgis/rest/services/Wisselverwarming_en_Gas/FeatureServer"
+    PRORAIL_FEATURE_SERVER_WB: str = "https://maps.prorail.nl/arcgis/rest/services/Water__en_Brandleidingen/FeatureServer"
+    PRORAIL_FEATURE_SERVER_RD: str = "https://maps.prorail.nl/arcgis/rest/services/Riool__Drainage_en_Diesel/FeatureServer"
+
     @property
     def database_url(self) -> str:
         """Helper to generate the connection string."""
@@ -36,6 +43,8 @@ class TestFiles(BaseModel):
     DATA_DIR: Path = BASE_DIR / "data"
 
     INPUT_DIR: Path = DATA_DIR / "input"
+    EXCELS_DIR: Path = DATA_DIR / "Excels"
+    VALID_EXCELS_DIR: Path = DATA_DIR / "output" / "valid_file"
 
     # The minimal file you want to run first (Small section of the Maasvlakte)
     SMALL_SINGLE_FILE: Path = INPUT_DIR / "publiceer.xlsx"
@@ -61,10 +70,22 @@ class TestFiles(BaseModel):
     DEN_HAAG_FILE_3_WB: Path = INPUT_DIR / "564WB01.xlsx"
     DEN_HAAG_FILE_3_RD: Path = INPUT_DIR / "564RD01.xlsx"
 
+    @computed_field
+    @property
+    def excel_files(self) -> list[Path]:
+        # This handles both .xlsx and .xls
+        return list(self.EXCELS_DIR.glob("*.xls*"))
+
+    @computed_field
+    @property
+    def valid_excel_files(self) -> list[Path]:
+        # This handles both .xlsx and .xls
+        return list(self.VALID_EXCELS_DIR.glob("*.xls*"))
+
 
 # Instantiate the settings object to be imported elsewhere
 settings = Settings()
 test_files = TestFiles()
 
 if __name__ == "__main__":
-    print(settings)
+    print(len(test_files.excel_files))

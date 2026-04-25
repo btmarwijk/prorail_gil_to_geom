@@ -1,12 +1,11 @@
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
 
 from pydantic import (
     BaseModel,
     ConfigDict,
     Field,
-    field_serializer,
     field_validator,
 )
 from schemas.mappings import GROEP_MAPPING, SUBGROEP_MAPPING
@@ -15,9 +14,6 @@ from schemas.mappings import GROEP_MAPPING, SUBGROEP_MAPPING
 class SpoorkabelBase(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
-    oud_nieuw: str | None = Field(
-        default="OUD", alias="OUD/NIEUW", serialization_alias="oud_nieuw"
-    )
     kabelnummer: int | None = Field(
         default=None, alias="KABELNUMMER", serialization_alias="kabelnummer"
     )
@@ -48,7 +44,12 @@ class SpoorkabelBase(BaseModel):
         default=None, alias="NAAR_GIL", serialization_alias="naar_gil"
     )
 
-    geulen: str | None = Field(..., alias="GEULEN", serialization_alias="geulen")
+    geulen: list[int] | None = Field(..., alias="GEULEN", serialization_alias="geulen")
+    geulen_not_found: list[int] | None = None
+
+    opmerking: str | None = Field(
+        default=None, alias="OPMERKING", serialization_alias="opmerking"
+    )
 
     max_lengte: float | None = Field(
         default=None, alias="MAX_LENGTE", serialization_alias="max_lengte"
@@ -77,12 +78,6 @@ class SpoorkabelBase(BaseModel):
             except ValueError:
                 raise ValueError("Datum moet in dd-mm-yyyy formaat zijn")
 
-    @field_serializer("kabel_geboren")
-    def serialize_dt(self, dt: datetime | None):
-        if dt is None:
-            return None
-        return int(dt.replace(tzinfo=timezone.utc).timestamp() * 1000)
-
     @field_validator("groep", mode="before")
     @classmethod
     def parse_groep(cls, v):
@@ -97,6 +92,30 @@ class SpoorkabelBase(BaseModel):
             return v
         if isinstance(v, str):
             return SUBGROEP_MAPPING.get(v, v)
+
+    @field_validator("geulen", mode="before")
+    @classmethod
+    def parse_geulen(cls, v) -> list[int]:
+        if v is None:
+            return []
+
+        # If it's already an int (e.g., 203), wrap it in a list
+        if isinstance(v, int):
+            return [v]
+
+        # If it's a string (e.g., "203 204 205" or "203")
+        if isinstance(v, str):
+            # Split by whitespace and convert each part to an int
+            # This handles multiple spaces automatically
+            return [int(x) for x in v.split() if x.strip()]
+
+        return v
+
+    @field_validator("kabelnaam", "kabeltype", mode="before")
+    def parse_names(cls, v) -> str:
+        if isinstance(v, int):
+            return str(v)
+        return v
 
 
 class SpoorkabelCreate(SpoorkabelBase):
