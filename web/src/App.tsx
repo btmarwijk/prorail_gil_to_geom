@@ -7,17 +7,19 @@ function App() {
 
   return (
     <>
-      <AppBar position="static">
+    
+      <AppBar position="absolute">
         <Toolbar>
           <Typography variant="h6">KabelLeiding GIS Viewer</Typography>
         </Toolbar>
       </AppBar>
 
-      <Container sx={{ mt: 4 }}>
-        <Paper elevation={3} style={{ height: '500px', width: '100%' }}>
+      <Toolbar />
+      <Container>
+        <Paper elevation={2} style={{ height: '90vh', width: '75vw' }}>
           <MapContainer center={position} zoom={13} style={{ height: '100%', width: '100%' }}>
             <TileLayer
-              url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+              url="https://a.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png"
               attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
             />
             <Marker position={position}>

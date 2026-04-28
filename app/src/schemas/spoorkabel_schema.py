@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta
 
+from geojson_pydantic import Feature, MultiLineString
 from pydantic import (
     BaseModel,
     ConfigDict,
@@ -124,3 +125,11 @@ class SpoorkabelCreate(SpoorkabelBase):
 
 class SpoorkabelRead(SpoorkabelBase):
     id: int
+    created_at: datetime
+    edited_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class SpoorkabelFeature(Feature[MultiLineString, SpoorkabelRead]):
+    pass
