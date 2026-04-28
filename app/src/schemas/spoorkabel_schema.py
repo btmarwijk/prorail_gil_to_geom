@@ -111,7 +111,7 @@ class SpoorkabelBase(BaseModel):
 
         return v
 
-    @field_validator("kabelnaam", "kabeltype", mode="before")
+    @field_validator("kabelnaam", "kabeltype", "kabelnaam_oud", mode="before")
     def parse_names(cls, v) -> str:
         if isinstance(v, int):
             return str(v)

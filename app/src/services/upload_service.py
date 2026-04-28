@@ -1,7 +1,6 @@
 from dataclasses import asdict
 
 import pandas as pd
-from core.database import SessionLocal
 from models import (
     Tekening,
     Upload,
@@ -14,13 +13,14 @@ from models import (
 from services.prorail_gil_service import ProrailFeatureService
 from services.spoorkabel_service import SpoorkabelService
 from sqlalchemy import select
+from sqlalchemy.orm import Session
 from utils.excel_reader import ExcelReader, ExcelReaderResult
 
 
 # --- The Logic Layer (Service) ---
 class UploadService:
-    def __init__(self):
-        self.db = SessionLocal()
+    def __init__(self, db: Session):
+        self.db = db
 
     def get_user_by_id(self, id: int = 1) -> None:
         user = self.db.scalars(select(User).where(User.id == 1)).first()
@@ -28,8 +28,8 @@ class UploadService:
             raise ValueError(f"User {user} not found")
         self.user = user
 
-    def process(self, excel_file) -> pd.DataFrame:
-        return ExcelReader(excel_file).render()
+    def process(self, excel_file: ExcelReaderResult) -> pd.DataFrame:
+        self.processed_excel = ExcelReader(excel_file).render()[0]
 
     def process_manual(self, excel_file: ExcelReaderResult):
         self.processed_excel = ExcelReader(excel_file).render()[0]
@@ -170,14 +170,26 @@ class UploadService:
         service.insert_spoorkabel()
         service.insert_relates()
 
+    def run(self):
+        self.get_user_by_id()
+        self._add_upload()
+        print(f"{self.processed_excel.metadata.geocodenaam}")
+        self._add_tekening()
+        self._add_versie()
+        self._add_gils()
+        self._add_spoorkabels()
+
 
 if __name__ == "__main__":
     from core.config import test_files
+    from core.database import get_db
 
-    uploader = UploadService()
+    db = next(get_db())
+
+    uploader = UploadService(db=db)
     uploader.get_user_by_id()
 
-    for index, file in enumerate(test_files.valid_excel_files[1::15]):
+    for index, file in enumerate(test_files.valid_excel_files[::40]):
         try:
             print(f"{index}: {file}")
             uploader.process_manual(excel_file=file)

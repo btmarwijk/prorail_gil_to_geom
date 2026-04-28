@@ -8,9 +8,14 @@ services:
       POSTGRES_PASSWORD: ${DB_PASSWORD}
       POSTGRES_DB: ${DB_NAME}
     ports:
-      - "5432:5432"
+      - "${DB_PORT}:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER} -d ${DB_NAME}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
 
   redis:
     image: redis:7-alpine
@@ -35,14 +40,63 @@ services:
     ports:
       - "8000:8000"
     volumes:
-      - ./app:/app:Z
+      - ./app:/app:z
+    workdir: /app
+    environment:
+      - DATABASE_URL=postgresql://${DB_USER}:${DB_PASSWORD}@{DB_HOST}:5432/${DB_NAME}
+      - DB_HOST=${DB_HOST}
+      - PYTHONPATH=/app/src:/app
+      - CELERY_BROKER_URL=redis://:${REDIS_PASSWORD:-redis}@redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://:${REDIS_PASSWORD:-redis}@redis:6379/1
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    command: uvicorn src.main:app --host 0.0.0.0 --port 8000 --reload
+
+  celery_worker:
+    build: 
+      context: ./app
+      dockerfile: Dockerfile
+    container_name: fastapi_celery_worker
+    volumes:
+      - ./app:/app:z
+    workdir: /app
+    environment:
+      - DATABASE_URL=postgresql://${DB_USER}:${DB_PASSWORD}@${DB_HOST}:{DB_PORT}/${DB_NAME}
+      - PYTHONPATH=/app/src:/app
+      - CELERY_BROKER_URL=redis://:${REDIS_PASSWORD:-redis}@redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://:${REDIS_PASSWORD:-redis}@redis:6379/1
+    depends_on:
+      db:
+        condition: service_started
+      redis:
+        condition: service_healthy
+    command: celery -A src.core.celery_app worker --loglevel=info --concurrency=4
+    restart: always
+
+  celery_beat:
+    build: 
+      context: ./app
+      dockerfile: Dockerfile
+    container_name: fastapi_celery_beat
+    volumes:
+      - ./app:/app:z
+      - celery_beat_schedule:/app/celery_beat_schedule
     workdir: /app
     environment:
       - DATABASE_URL=postgresql://${DB_USER}:${DB_PASSWORD}@db:5432/${DB_NAME}
       - PYTHONPATH=/app/src:/app
+      - CELERY_BROKER_URL=redis://:${REDIS_PASSWORD:-redis}@redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://:${REDIS_PASSWORD:-redis}@redis:6379/1
     depends_on:
-      - db
-    command: uvicorn src.main:app --host 0.0.0.0 --port 8000 --reload
+      db:
+        condition: service_started
+      redis:
+        condition: service_healthy
+    command: celery -A src.core.celery_app beat --loglevel=info
+    restart: always
 
   web:
     build:
@@ -62,22 +116,6 @@ services:
     stdin_open: true
     tty: true
 
-  geoserver:
-      image: kartoza/geoserver:latest
-      container_name: fastapi_geoserver
-      restart: always
-      environment:
-        GEOSERVER_ADMIN_USER: admin
-        GEOSERVER_ADMIN_PASSWORD: ${GEOSERVER_PASSWORD:-geoserver}
-        INITIAL_MEMORY: "2G"
-        MAXIMUM_MEMORY: "4G"
-      ports:
-        - "8080:8080"
-      volumes:
-        - geoserver_data:/opt/geoserver/data_dir
-      depends_on:
-        - db
-
   nginx:
     image: nginx:alpine
     container_name: nginx_reverse_proxy
@@ -91,11 +129,10 @@ services:
     depends_on:
       - app
       - web
-      - geoserver
     stdin_open: true
     tty: true
 
 volumes:
   postgres_data:
   redis_data:
-  geoserver_data:
+  celery_beat_schedule:

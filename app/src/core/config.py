@@ -15,6 +15,9 @@ class Settings(BaseSettings):
     db_host: str = config.get("DB_HOST")
     db_port: int = config.get("DB_PORT")
 
+    REDIS_PASSWORD: str = config.get("REDIS_PASSWORD")
+    CELERY_BROKER_URL: str = f"redis://:{REDIS_PASSWORD}@redis:6379/0"
+    CELERY_RESULT_BACKEND: str = f"redis://:{REDIS_PASSWORD}@redis:6379/1"
     # PostGIS specific settings if needed
     debug: bool = False
 
@@ -45,30 +48,6 @@ class TestFiles(BaseModel):
     INPUT_DIR: Path = DATA_DIR / "input"
     EXCELS_DIR: Path = DATA_DIR / "Excels"
     VALID_EXCELS_DIR: Path = DATA_DIR / "output" / "valid_file"
-
-    # The minimal file you want to run first (Small section of the Maasvlakte)
-    SMALL_SINGLE_FILE: Path = INPUT_DIR / "publiceer.xlsx"
-
-    # Two files from a relative minor railway station
-    ALPHEN_FILE_1: Path = INPUT_DIR / "623KS01.xlsx"
-    ALPHEN_FILE_2: Path = INPUT_DIR / "623KS02.xlsx"
-
-    # A single tekeningnaam (560KS01), but a big train station (Den Haag Centraal)
-    SINGLE_KABEL_FILE: Path = INPUT_DIR / "R-537600-KeL-UO300-LST-001.xlsx"
-
-    # A multi-sheet excel-file for the maasvlakte (Rotterdam port)
-    MULTI_KABEL_FILE: Path = INPUT_DIR / "GIL A+B.xlsx"
-    RAW_GIL_FILE: Path = INPUT_DIR / "560KS01.xlsx"
-
-    DEN_HAAG_FILE_1_KS: Path = INPUT_DIR / "536KS01.xlsx"
-
-    DEN_HAAG_FILE_2_KS: Path = INPUT_DIR / "561KS01.xlsx"
-
-    # These are all the kabels & leidingen for 1 tekeningnaam
-    DEN_HAAG_FILE_3_KS: Path = INPUT_DIR / "564KS01.xlsx"
-    DEN_HAAG_FILE_3_WV: Path = INPUT_DIR / "564WV01.xlsx"
-    DEN_HAAG_FILE_3_WB: Path = INPUT_DIR / "564WB01.xlsx"
-    DEN_HAAG_FILE_3_RD: Path = INPUT_DIR / "564RD01.xlsx"
 
     @computed_field
     @property

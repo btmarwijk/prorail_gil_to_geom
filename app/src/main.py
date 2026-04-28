@@ -1,10 +1,12 @@
 from api.v1.api_router import api_router
+from core.celery_app import celery_app  # noqa: F401
 from fastapi import FastAPI
 
 # 1. Create an instance of the FastAPI class
 app = FastAPI(title="KabelLeiding GIS API")
 
 app.include_router(api_router, prefix="/api/v1")
+
 
 # In production, replace ["*"] with your actual domain
 # app.add_middleware(

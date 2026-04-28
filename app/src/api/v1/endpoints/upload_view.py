@@ -1,5 +1,7 @@
-from fastapi import APIRouter, File, HTTPException, UploadFile
+from core.database import get_db
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from services.upload_service import UploadService
+from sqlalchemy.orm import Session
 from utils.excel_validation import is_valid_excel
 
 # from sqlalchemy.orm import Session
@@ -9,7 +11,7 @@ router = APIRouter()
 
 
 @router.post("/upload-excel")
-async def upload_excel(file: UploadFile = File(...)):
+async def upload_excel(file: UploadFile = File(...), db: Session = Depends(get_db)):
     valid_excel_extensions = {".xlsx", ".xls", ".xlsm"}
 
     # Validatie (houd dit kort in de router)
@@ -24,13 +26,14 @@ async def upload_excel(file: UploadFile = File(...)):
         )
 
     try:
-        service = UploadService()
-        upload_ids = service.process(excel_file=contents)
+        service = UploadService(db=db)
+        service.process(excel_file=contents)
+        service.run()
 
         return {
             "status": "success",
-            "message": f"{len(upload_ids)} bestanden succesvol verwerkt.",
-            "upload_ids": upload_ids,
+            "message": "bestanden succesvol verwerkt.",
+            "upload_ids": "upload_ids",
         }
     except Exception as e:
         # db.rollback()  # Veiligheid boven alles
