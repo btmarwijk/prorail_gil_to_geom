@@ -1,6 +1,8 @@
 from dataclasses import asdict
+from pathlib import Path
 
 import pandas as pd
+from core import logger
 from models import (
     Tekening,
     Upload,
@@ -165,7 +167,9 @@ class UploadService:
 
     def _add_spoorkabels(self):
         service = SpoorkabelService(
-            spoorkabel_schemas=self.processed_excel.records, versie=self.versie_bestaand
+            db=self.db,
+            spoorkabel_schemas=self.processed_excel.records,
+            versie=self.versie_bestaand,
         )
         service.insert_spoorkabel()
         service.insert_relates()
@@ -173,7 +177,7 @@ class UploadService:
     def run(self):
         self.get_user_by_id()
         self._add_upload()
-        print(f"{self.processed_excel.metadata.geocodenaam}")
+        logger.info(f"{self.processed_excel.metadata.geocodenaam}")
         self._add_tekening()
         self._add_versie()
         self._add_gils()
@@ -185,11 +189,18 @@ if __name__ == "__main__":
     from core.database import get_db
 
     db = next(get_db())
+    unique_names = db.query(Tekening.naam).distinct().all()
+    names_list = [name for (name,) in unique_names]
 
     uploader = UploadService(db=db)
     uploader.get_user_by_id()
 
-    for index, file in enumerate(test_files.valid_excel_files[::40]):
+    unseen_valid_excels = []
+    for file in test_files.valid_excel_files:
+        if Path(file).stem not in names_list:
+            unseen_valid_excels.append(file)
+
+    for index, file in enumerate(unseen_valid_excels, start=1):
         try:
             print(f"{index}: {file}")
             uploader.process_manual(excel_file=file)
@@ -199,4 +210,5 @@ if __name__ == "__main__":
             uploader._add_gils()
             uploader._add_spoorkabels()
         except Exception as e:
-            raise e
+            print(f"--- {e} ---")
+            continue

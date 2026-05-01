@@ -28,7 +28,7 @@ class ProrailGil(Base):
         Geometry("MULTILINESTRING", srid=28992), nullable=True
     )
 
-    tekeningnaam: Mapped[str] = mapped_column(String(16), nullable=False)
+    tekeningnaam: Mapped[str] = mapped_column(String(16), nullable=False, index=True)
     tekeningversie: Mapped[str] = mapped_column(String(8), nullable=False)
     gil_nummer: Mapped[int | None] = mapped_column(Integer)
     opmerking: Mapped[str | None] = mapped_column(String(1000))

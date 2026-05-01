@@ -1,4 +1,4 @@
-from core.database import SessionLocal
+from core import logger
 from models.prorail_gil_model import ProrailGil
 from models.spoorkabel_model import Spoorkabel
 from models.spoorkabel_prorail_relation import SpoorkabelProrailRelation
@@ -7,15 +7,19 @@ from models.versie_model import Versie
 from schemas.spoorkabel_schema import SpoorkabelCreate
 from services.prorail_spoorkabel_service import ProrailSpoorkabelService
 from sqlalchemy import func, select, update
+from sqlalchemy.orm import Session, defer
 
 
 class SpoorkabelService:
-    def __init__(self, spoorkabel_schemas: list[SpoorkabelCreate], versie: Versie):
-        self.db = SessionLocal()
+    def __init__(
+        self, db: Session, spoorkabel_schemas: list[SpoorkabelCreate], versie: Versie
+    ):
+        self.db = db
         self.versie = versie
         self.spoorkabel_schemas = spoorkabel_schemas
 
     def insert_spoorkabel(self):
+        logger.info("Inserting Spoorkabels")
         # 1. Extract all identifiers to fetch in one go
         kabelnummers = [s.kabelnummer for s in self.spoorkabel_schemas if s.kabelnummer]
 
@@ -72,12 +76,17 @@ class SpoorkabelService:
         service = ProrailSpoorkabelService(db=self.db, tekening=self.versie.tekening)
         stmt = (
             select(Spoorkabel)
-            .join(Spoorkabel.versie_details)  # Use the relationship name
+            .join(Spoorkabel.versie_details)
             .where(SpoorkabelVersieDetail.versie_id == self.versie.id)
-            .distinct()  # Use this if a kabel could theoretically have multiple entries for one version
+            .options(
+                defer(Spoorkabel.geom)
+            )  # <--- Prevents DB from sending heavy geometries
+            .distinct()
         )
         _spoorkabels = self.db.scalars(stmt).all()
+        logger.info("Starting processing relates: ")
         spoorkabels = service.process_all_kabels(_spoorkabels)
+        logger.info("Starting Dissolve: ")
         self.dissolve_geometries_for_kabels(spoorkabels)
 
     def dissolve_geometries_for_kabels(self, kabels: list[Spoorkabel]):

@@ -216,3 +216,31 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Local .terraform folder (contains provider binaries and modules)
+# This can be several hundred MBs; it is rebuilt via 'terraform init'
+.terraform/
+
+# Terraform State files
+# These contain the current infrastructure status and potentially sensitive data
+*.tfstate
+*.tfstate.*
+
+# Crash logs
+crash.log
+crash.*.log
+
+# Terraform Variables files
+# These are the files where you likely store your DigitalOcean API token or DB passwords
+*.tfvars
+*.tfvars.json
+
+# Override files (used for local-only tweaks)
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+
+# CLI configuration files
+.terraformrc
+terraform.rc
