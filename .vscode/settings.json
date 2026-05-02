@@ -15,5 +15,13 @@
   }
 },
 "terminal.integrated.defaultProfile.linux": "bash",
-"python.analysis.extraPaths": ["./app/src"]
+"python.analysis.extraPaths": ["./app/src"],
+"files.exclude": {
+    "**/.terraform": true,
+    "**/node_modules": true,
+    "**/__pycache__": true
+},
+"js/ts.suggest.paths": true,
+"js/ts.preferences.importModuleSpecifier": "non-relative"
+
 }

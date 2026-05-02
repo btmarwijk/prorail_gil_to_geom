@@ -10,7 +10,7 @@ from utils.excel_validation import is_valid_excel
 router = APIRouter()
 
 
-@router.post("/upload-excel")
+@router.post("/submit-excel")
 async def upload_excel(file: UploadFile = File(...), db: Session = Depends(get_db)):
     valid_excel_extensions = {".xlsx", ".xls", ".xlsm"}
 

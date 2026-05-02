@@ -1,5 +1,4 @@
 from dataclasses import asdict
-from pathlib import Path
 
 import pandas as pd
 from core import logger
@@ -177,7 +176,6 @@ class UploadService:
     def run(self):
         self.get_user_by_id()
         self._add_upload()
-        logger.info(f"{self.processed_excel.metadata.geocodenaam}")
         self._add_tekening()
         self._add_versie()
         self._add_gils()
@@ -189,21 +187,15 @@ if __name__ == "__main__":
     from core.database import get_db
 
     db = next(get_db())
-    unique_names = db.query(Tekening.naam).distinct().all()
-    names_list = [name for (name,) in unique_names]
 
     uploader = UploadService(db=db)
     uploader.get_user_by_id()
 
-    unseen_valid_excels = []
-    for file in test_files.valid_excel_files:
-        if Path(file).stem not in names_list:
-            unseen_valid_excels.append(file)
-
-    for index, file in enumerate(unseen_valid_excels, start=1):
+    for index, file in enumerate(test_files.valid_excel_files, start=1):
         try:
-            print(f"{index}: {file}")
+            logger.info(f"{index}: {file}")
             uploader.process_manual(excel_file=file)
+            logger.info(uploader.processed_excel.metadata.geocodenaam)
             upload = uploader._add_upload()
             tekening = uploader._add_tekening()
             versie = uploader._add_versie()

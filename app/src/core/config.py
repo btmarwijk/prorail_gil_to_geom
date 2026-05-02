@@ -59,7 +59,7 @@ class TestFiles(BaseModel):
     @property
     def valid_excel_files(self) -> list[Path]:
         # This handles both .xlsx and .xls
-        return list(self.VALID_EXCELS_DIR.glob("*.xls*"))
+        return sorted(self.VALID_EXCELS_DIR.glob("*.xls*"))
 
 
 # Instantiate the settings object to be imported elsewhere
@@ -67,4 +67,4 @@ settings = Settings()
 test_files = TestFiles()
 
 if __name__ == "__main__":
-    print(len(test_files.excel_files))
+    print(test_files.valid_excel_files[:4])

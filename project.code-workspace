@@ -1,0 +1,8 @@
+{
+  "folders": [
+    { "path": "web" },
+    { "path": "terraform" },
+    { "path": "app" }
+  ],
+  "settings": {}
+}

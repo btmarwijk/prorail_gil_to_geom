@@ -3,3 +3,4 @@ app/data/temp/*
 app/data/output/*
 app/data/logs/*
 .git
+.env
