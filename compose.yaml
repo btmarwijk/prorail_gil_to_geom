@@ -17,6 +17,24 @@ services:
       timeout: 5s
       retries: 5
 
+  geoserver:
+    image: docker.osgeo.org/geoserver:2.24.x
+    container_name: geoserver_gis
+    restart: always
+    environment:
+      - GEOSERVER_ADMIN_PASSWORD=${GEOSERVER_ADMIN_PASSWORD:-geoserver}
+      - GEOSERVER_ADMIN_USER=${GEOSERVER_ADMIN_USER:-admin}
+      - INITIAL_MEMORY=2G
+      - MAXIMUM_MEMORY=4G
+      - SKIP_DEMO_DATA=true
+    ports:
+      - "8080:8080"
+    volumes:
+      - geoserver_data:/opt/geoserver_data:Z
+    depends_on:
+      db:
+        condition: service_healthy
+
   redis:
     image: redis:7-alpine
     container_name: fastapi_redis
@@ -139,3 +157,4 @@ volumes:
   celery_beat_schedule:
   web_node_modules:
   web_vite_cache:
+  geoserver_data:

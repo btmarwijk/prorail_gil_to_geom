@@ -5,6 +5,7 @@ from typing import Literal
 from arcgis.features import FeatureLayer, FeatureSet
 from core.config import settings
 from models.prorail_gil_model import ProrailGil
+from models.tekening_model import Tekening
 from schemas.prorail_gil_schema import FeatureCreate
 from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
@@ -116,15 +117,15 @@ class ProrailFeatureService:
             raise ValueError(f"No valid discipline found in: {tekeningnaam}")
         return match.group(0)
 
-    def sync_features_by_tekening(self, tekening_id: int, tekeningnaam: str):
+    def sync_features_by_tekening(self, tekening: Tekening):
         # 1. Identify Discipline
-        discipline = self._extract_discipline(tekeningnaam)
+        discipline = self._extract_discipline(tekening.naam)
         layer_provider = ProrailPublicFeatureLayer.get_layer(discipline)
 
         # 2. Fetch from ArcGIS
-        features = layer_provider.get_by_tekeningnaam(tekeningnaam)
+        features = layer_provider.get_by_tekeningnaam(tekening.naam)
         if not features:
-            print(f"No features found for {tekeningnaam}")
+            print(f"No features found for {tekening.naam}")
             return []
 
         # 3. Check Version (Compare first response feature with DB)
@@ -133,7 +134,7 @@ class ProrailFeatureService:
         # Query for the version of existing records in the DB
         existing_stmt = (
             select(ProrailGil.tekeningversie)
-            .where(ProrailGil.tekening_id == tekening_id)
+            .where(ProrailGil.tekening_id == tekening.id)
             .limit(1)
         )
         current_db_version = self.db.execute(existing_stmt).scalar_one_or_none()
@@ -151,7 +152,7 @@ class ProrailFeatureService:
                 )
                 # Delete old records to make room for new ones
                 self.db.execute(
-                    delete(ProrailGil).where(ProrailGil.tekening_id == tekening_id)
+                    delete(ProrailGil).where(ProrailGil.tekening_id == tekening.id)
                 )
             else:
                 print(
@@ -164,7 +165,7 @@ class ProrailFeatureService:
         for feat in features:
             attrs = feat.attributes
             new_record = ProrailGil(
-                tekening_id=tekening_id,
+                tekening_id=tekening.id,
                 geom=f"SRID=28992;{feat.geometry.wkt}",
                 tekeningnaam=attrs.tekeningnaam,
                 tekeningversie=attrs.tekeningversie,
@@ -177,7 +178,7 @@ class ProrailFeatureService:
 
         if db_objects:
             self.db.add_all(db_objects)
-            self.db.commit()
+            self.db.flush()
             print(
                 f"Successfully synced {len(db_objects)} features (Version: {new_version})"
             )

@@ -1,5 +1,4 @@
-import os
-
+from core.config import settings
 from dotenv import load_dotenv
 from models import Base  # noqa: F401 — imports all models, populates Base.metadata
 from sqlalchemy import create_engine, text
@@ -8,8 +7,8 @@ from sqlalchemy.orm import sessionmaker
 load_dotenv()
 
 DATABASE_URL = (
-    f"postgresql://{os.getenv('DB_USER')}:{os.getenv('DB_PASSWORD')}"
-    f"@{os.getenv('DB_HOST')}:{os.getenv('DB_PORT')}/{os.getenv('DB_NAME')}"
+    f"postgresql://{settings.DB_USER}:{settings.DB_PASSWORD}"
+    f"@{settings.DB_HOST}:{settings.DB_PORT}/{settings.DB_NAME}"
 )
 
 engine = create_engine(DATABASE_URL)

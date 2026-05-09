@@ -1,0 +1,67 @@
+/* UploadPage.module.css - Standard CSS Version */
+
+.container {
+  width: 100%;
+  margin-left: auto;
+  margin-right: auto;
+  padding-top: 2rem;    /* py-8 */
+  padding-bottom: 2rem;
+  padding-left: 1rem;   /* px-4 */
+  padding-right: 1rem;
+  max-width: 56rem;     /* max-w-4xl */
+}
+
+.header {
+  margin-bottom: 2rem;  /* mb-8 */
+}
+
+.title {
+  font-size: 1.875rem;  /* text-3xl */
+  line-height: 2.25rem;
+  font-weight: 700;     /* font-bold */
+  color: #111827;       /* text-gray-900 */
+}
+
+.description {
+  margin-top: 0.5rem;   /* mt-2 */
+  color: #4b5563;       /* text-gray-600 */
+}
+
+.layoutGrid {
+  display: grid;
+  grid-template-columns: repeat(1, minmax(0, 1fr)); /* grid-cols-1 */
+  gap: 2rem;            /* gap-8 */
+}
+
+/* Tablet/Desktop breakpoint equivalent to md: */
+@media (min-width: 768px) {
+  .layoutGrid {
+    grid-template-columns: repeat(3, minmax(0, 1fr)); /* md:grid-cols-3 */
+  }
+}
+
+.mainContent {
+  grid-column: span 1 / span 1;
+}
+
+@media (min-width: 768px) {
+  .mainContent {
+    grid-column: span 2 / span 2; /* md:col-span-2 */
+  }
+}
+
+.sidebar {
+  background-color: #eff6ff; /* bg-blue-50 */
+  padding: 1.5rem;           /* p-6 */
+  border-radius: 0.5rem;      /* rounded-lg */
+  border: 1px solid #dbeafe; /* border-blue-100 */
+}
+
+.sidebarTitle {
+  font-size: 0.875rem;       /* text-sm */
+  font-weight: 700;          /* font-bold */
+  color: #1e40af;            /* text-blue-800 */
+  text-transform: uppercase; /* uppercase */
+  letter-spacing: 0.05em;    /* tracking-wider */
+  margin-bottom: 0.75rem;    /* mb-3 */
+}

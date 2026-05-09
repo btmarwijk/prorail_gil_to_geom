@@ -1,6 +1,5 @@
 from dataclasses import asdict
 
-import pandas as pd
 from core import logger
 from models import (
     Tekening,
@@ -11,11 +10,17 @@ from models import (
     VersieOntwerp,
     VersieOntwerpFase,
 )
+from schemas.spoorkabel_schema import SpoorkabelCreate
 from services.prorail_gil_service import ProrailFeatureService
 from services.spoorkabel_service import SpoorkabelService
 from sqlalchemy import select
 from sqlalchemy.orm import Session
-from utils.excel_reader import ExcelReader, ExcelReaderResult
+from utils.excel_reader import (
+    DesignMetaData,
+    ExcelReader,
+    ExcelReaderResult,
+    ExistingMetaData,
+)
 
 
 # --- The Logic Layer (Service) ---
@@ -23,60 +28,82 @@ class UploadService:
     def __init__(self, db: Session):
         self.db = db
 
-    def get_user_by_id(self, id: int = 1) -> None:
-        user = self.db.scalars(select(User).where(User.id == 1)).first()
+    def run(self, excel_file: ExcelReaderResult):
+        try:
+            processed_data = ExcelReader(excel_file).render()[0]
+            user = self._get_user(id=1)
+            upload = self._add_upload(user)
+            tekening = self._add_tekening(upload, metadata=processed_data.metadata)
+            versie_bestaand, _ = self._add_versie(
+                tekening,
+                metadata=processed_data.metadata,
+                metadata_new=processed_data.metadata_new,
+            )
+            self._add_gils(tekening)
+            self._add_spoorkabels(versie_bestaand, records=processed_data.records)
+            self.db.commit()
+
+            return {
+                "geocodenaam": processed_data.metadata.geocodenaam,
+                "discipline": tekening.discipline,
+            }
+
+        except Exception as e:
+            self.db.rollback()
+            logger.error("Upload rolled back due to error: ", e)
+            # TODO: Add return for error
+            pass
+
+    def _get_user(self, id: int = 1) -> User:
+        user = self.db.scalars(select(User).where(User.id == id)).first()
         if not user:
             raise ValueError(f"User {user} not found")
-        self.user = user
+        return user
 
-    def process(self, excel_file: ExcelReaderResult) -> pd.DataFrame:
-        self.processed_excel = ExcelReader(excel_file).render()[0]
-
-    def process_manual(self, excel_file: ExcelReaderResult):
-        self.processed_excel = ExcelReader(excel_file).render()[0]
-
-    def _add_upload(self):
-        upload = Upload(user_id=self.user.id)
+    def _add_upload(self, user: User) -> Upload:
+        upload = Upload(user_id=user.id)
         self.db.add(upload)
-        self.db.commit()
-        self.upload = upload
+        self.db.flush()
         return upload
 
-    def _add_tekening(self):
-        tekeningnaam = self.processed_excel.metadata.gil
+    def _add_tekening(self, upload: Upload, metadata: ExistingMetaData) -> Tekening:
+        tekeningnaam = metadata.gil
 
         stmt = select(Tekening).where(Tekening.naam == tekeningnaam)
         tekening = self.db.scalars(stmt).first()
 
         if not tekening:
             tekening = Tekening(
-                upload_id=self.upload.id,
-                naam=self.processed_excel.metadata.gil,
-                geocodenaam=self.processed_excel.metadata.geocodenaam,
-                regio=self.processed_excel.metadata.gebied,
+                upload_id=upload.id,
+                naam=metadata.gil,
+                geocodenaam=metadata.geocodenaam,
+                regio=metadata.gebied,
             )
             self.db.add(tekening)
-            self.db.commit()
-            self.db.refresh(tekening)
+            self.db.flush()
 
-        self.tekening = tekening
         return tekening
 
-    def _add_versie(self):
-        stmt = select(Versie).where(Versie.tekening_id == self.tekening.id)
+    def _add_versie(
+        self,
+        tekening: Tekening,
+        metadata: ExistingMetaData,
+        metadata_new: DesignMetaData | None,
+    ) -> tuple[VersieBestaand, VersieOntwerp | None]:
+        stmt = select(Versie).where(Versie.tekening_id == tekening.id)
         versie = self.db.scalars(stmt).first()
-        versie_code = self.processed_excel.metadata.versie
+        versie_code = metadata.versie
 
         if not versie:
             versie_bestaand = VersieBestaand(
-                tekening_id=self.tekening.id,
+                tekening_id=tekening.id,
                 versie_code=versie_code,
-                aantal_regels=self.processed_excel.metadata.aantal_regels,
-                hoogste_gil=self.processed_excel.metadata.hoogste_gil,
-                is_reversed_engineerd=self.processed_excel.metadata.is_reversed_engineerd,
+                aantal_regels=metadata.aantal_regels,
+                hoogste_gil=metadata.hoogste_gil,
+                is_reversed_engineerd=metadata.is_reversed_engineerd,
             )
             self.db.add(versie_bestaand)
-            self.db.commit()
+            self.db.flush()
 
         if versie:
             stmt = select(VersieBestaand).where(
@@ -88,17 +115,24 @@ class UploadService:
 
         self.versie_bestaand = versie_bestaand
 
-        if self.processed_excel.type == "ontwerp":
-            versie_ontwerp = self._add_versie_ontwerp(versie_bestaand)
+        if metadata_new:
+            versie_ontwerp = self._add_versie_ontwerp(
+                versie_bestaand, tekening=tekening, metadata_new=metadata_new
+            )
         else:
             versie_ontwerp = None
 
         return [versie_bestaand, versie_ontwerp]
 
-    def _add_versie_ontwerp(self, versie_bestaand: VersieBestaand):
+    def _add_versie_ontwerp(
+        self,
+        versie_bestaand: VersieBestaand,
+        tekening: Tekening,
+        metadata_new: DesignMetaData,
+    ):
         # TODO: Add ontwerp fase to this function
 
-        versie_ini_code = self.processed_excel.metadata_new.versie_ini
+        versie_ini_code = metadata_new.versie_ini
 
         stmt = select(VersieOntwerp).where(
             VersieOntwerp.id == versie_bestaand.id,
@@ -108,26 +142,27 @@ class UploadService:
 
         if not versie_ontwerp:
             versie_ontwerp = VersieOntwerp(
-                tekening_id=self.tekening.id,
+                tekening_id=tekening.id,
                 versie_ini=versie_ini_code,
                 parent_versie_bestaand_id=versie_bestaand.id,
             )
 
             self.db.add(versie_ontwerp)
-            self.db.commit()
+            self.db.flush()
 
         return versie_ontwerp
 
-    def _order_fases(self) -> dict[str, dict]:
-        metadata_new = self.processed_excel.metadata_new
+    def _order_fases(self, metadata_new: DesignMetaData) -> dict[str, dict]:
         ab = {k: v for k, v in asdict(metadata_new).items() if "ab" in k}
         rr = {k: v for k, v in asdict(metadata_new).items() if "rr" in k}
         tb = {k: v for k, v in asdict(metadata_new).items() if "tb" in k}
 
         return {"ab": ab, "rr": rr, "tb": tb}
 
-    def _add_versie_ontwerp_fase(self, versie_ontwerp: VersieOntwerp):
-        fases = self._order_fases()
+    def _add_versie_ontwerp_fase(
+        self, versie_ontwerp: VersieOntwerp, metadata_new: DesignMetaData
+    ):
+        fases = self._order_fases(metadata_new)
 
         results = []
         for key, fase in fases.items():
@@ -153,33 +188,26 @@ class UploadService:
                 )
 
                 self.db.add(versie_ontwerp_fase)
-                self.db.commit()
+                self.db.flush()
                 results.append(versie_ontwerp_fase)
 
         return results
 
-    def _add_gils(self):
+    def _add_gils(self, tekening: Tekening):
         prorail_service = ProrailFeatureService(db=self.db)
-        return prorail_service.sync_features_by_tekening(
-            self.tekening.id, tekeningnaam=self.tekening.naam
-        )
+        result = prorail_service.sync_features_by_tekening(tekening)
+        return result
 
-    def _add_spoorkabels(self):
+    def _add_spoorkabels(
+        self, versie_bestaand: VersieBestaand, records: list[SpoorkabelCreate]
+    ):
         service = SpoorkabelService(
             db=self.db,
-            spoorkabel_schemas=self.processed_excel.records,
-            versie=self.versie_bestaand,
+            spoorkabel_schemas=records,
+            versie=versie_bestaand,
         )
         service.insert_spoorkabel()
         service.insert_relates()
-
-    def run(self):
-        self.get_user_by_id()
-        self._add_upload()
-        self._add_tekening()
-        self._add_versie()
-        self._add_gils()
-        self._add_spoorkabels()
 
 
 if __name__ == "__main__":
@@ -189,18 +217,7 @@ if __name__ == "__main__":
     db = next(get_db())
 
     uploader = UploadService(db=db)
-    uploader.get_user_by_id()
 
-    for index, file in enumerate(test_files.valid_excel_files, start=1):
-        try:
-            logger.info(f"{index}: {file}")
-            uploader.process_manual(excel_file=file)
-            logger.info(uploader.processed_excel.metadata.geocodenaam)
-            upload = uploader._add_upload()
-            tekening = uploader._add_tekening()
-            versie = uploader._add_versie()
-            uploader._add_gils()
-            uploader._add_spoorkabels()
-        except Exception as e:
-            print(f"--- {e} ---")
-            continue
+    for index, file in enumerate(test_files.valid_excel_files[101:], start=1):
+        print(f"Currently at: {index}")
+        uploader.run(excel_file=file)

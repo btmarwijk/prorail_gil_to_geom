@@ -1,16 +1,16 @@
 from api.v1.api_router import api_router
 from core.celery_app import celery_app  # noqa: F401
+from core.config import settings
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 # 1. Create an instance of the FastAPI class
-app = FastAPI(title="KabelLeiding GIS API")
+app = FastAPI(title=settings.PROJECT_NAME)
 
-app.include_router(api_router, prefix="/api/v1")
+app.include_router(api_router, prefix=settings.API_V1_STR)
 
 origins = [
-    "http://localhost:5173",  # Default Vite port
-    "http://localhost:3000",  # Default Create-React-App port
+    settings.FRONTEND_HOST,  # Default Vite port
 ]
 # In production, replace ["*"] with your actual domain
 app.add_middleware(

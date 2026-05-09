@@ -68,7 +68,7 @@ class SpoorkabelService:
 
         # 4. Single transaction for everything
         self.db.add_all(db_spoorkabels)
-        self.db.commit()
+        self.db.flush()
 
         self.spoorkabels = db_spoorkabels
 
@@ -130,7 +130,6 @@ class SpoorkabelService:
 
         # 4. Execute and apply
         self.db.execute(stmt)
-        self.db.commit()
 
     def edit_spoorkabel(self):
         pass

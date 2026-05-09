@@ -1,8 +1,9 @@
 from __future__ import annotations
 
 from datetime import datetime, timedelta
+from typing import Union
 
-from geojson_pydantic import Feature, MultiLineString
+from geojson_pydantic import Feature, FeatureCollection, LineString, MultiLineString
 from pydantic import (
     BaseModel,
     ConfigDict,
@@ -131,5 +132,13 @@ class SpoorkabelRead(SpoorkabelBase):
     model_config = ConfigDict(from_attributes=True)
 
 
-class SpoorkabelFeature(Feature[MultiLineString, SpoorkabelRead]):
+class SpoorkabelFeature(Feature[Union[MultiLineString | LineString], SpoorkabelRead]):
+    pass
+
+
+class SpoorkabelFeatureCollection(FeatureCollection[SpoorkabelFeature]):
+    """
+    The 'Parent' container that holds a list of Spoorkabel features.
+    """
+
     pass

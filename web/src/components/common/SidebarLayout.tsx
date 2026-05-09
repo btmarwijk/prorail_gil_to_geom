@@ -10,9 +10,9 @@ import type { MenuItem } from '../../types/navigation';
 const drawerWidth = 240;
 
 const menuItems: MenuItem[] = [
-  { text: 'Map', path: '/map', icon: <MapIcon /> },
+  { text: 'Map', path: '/app/map', icon: <MapIcon /> },
   { text: 'Spoorkabels', path: '/spoorkabels', icon: <CableIcon /> },
-  { text: 'Upload', path: '/upload', icon: <UploadIcon /> },
+  { text: 'Upload', path: '/app/upload', icon: <UploadIcon /> },
   { text: 'User Profile', path: '/user', icon: <PersonIcon /> },
 ];
 

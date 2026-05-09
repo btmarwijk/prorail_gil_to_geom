@@ -19,6 +19,13 @@ export default defineConfig({
     },
     hmr: {
       clientPort: 5173 // Forces WebSocket to use the exposed port
-    }
+    },
+  proxy: {
+  '/geoserver': {
+    target: 'http://geoserver:8080', // GeoServer container hostname
+    changeOrigin: true,
+    rewrite: (path) => path, // Keep the path as-is
+  },
+},
   }
 })
